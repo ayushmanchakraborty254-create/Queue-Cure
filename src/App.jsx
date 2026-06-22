@@ -1,0 +1,724 @@
+import React, { useState, useEffect } from 'react';
+import { 
+  supabase, 
+  isSupabaseConfigured 
+} from './supabaseClient';
+import { 
+  UserPlus, 
+  Play, 
+  Check, 
+  Clock, 
+  Settings as SettingsIcon, 
+  Activity, 
+  RotateCcw, 
+  ShieldAlert, 
+  ListOrdered,
+  Users,
+  X
+} from 'lucide-react';
+
+// Pre-seeded mock data for Demo Mode
+const MOCK_INITIAL_QUEUE = [
+  { id: '1', patient_name: 'David Miller', token_number: 1, status: 'in-consultation', created_at: new Date(Date.now() - 3600000).toISOString() },
+  { id: '2', patient_name: 'Emily Watson', token_number: 2, status: 'waiting', created_at: new Date(Date.now() - 2400000).toISOString() },
+  { id: '3', patient_name: 'Robert Downey', token_number: 3, status: 'waiting', created_at: new Date(Date.now() - 1200000).toISOString() },
+  { id: '4', patient_name: 'Sarah Connor', token_number: 4, status: 'waiting', created_at: new Date(Date.now() - 600000).toISOString() },
+  { id: '5', patient_name: 'Bruce Wayne', token_number: 5, status: 'waiting', created_at: new Date(Date.now() - 300000).toISOString() },
+  { id: '6', patient_name: 'Clark Kent', token_number: 6, status: 'waiting', created_at: new Date(Date.now() - 100000).toISOString() }
+];
+
+const MOCK_INITIAL_SETTINGS = {
+  current_serving_token: 1,
+  avg_consultation_time: 15
+};
+
+export default function App() {
+  // Application State
+  const [queue, setQueue] = useState([]);
+  const [settings, setSettings] = useState({ current_serving_token: 0, avg_consultation_time: 15 });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  
+  // Input fields state
+  const [newPatientName, setNewPatientName] = useState('');
+  const [avgConsultTime, setAvgConsultTime] = useState(15);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [notification, setNotification] = useState(null);
+
+  // Notifications helper
+  const showToast = (message, type = 'success') => {
+    setNotification({ message, type });
+    setTimeout(() => {
+      setNotification(null);
+    }, 4000);
+  };
+
+  // 1. Initial Load of settings and queue
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      if (isSupabaseConfigured) {
+        let { data: settingsData, error: settingsError } = await supabase
+          .from('settings')
+          .select('*')
+          .eq('id', 1)
+          .maybeSingle();
+
+        if (!settingsData && !settingsError) {
+          const { data: newSettings, error: insertError } = await supabase
+            .from('settings')
+            .insert([{ id: 1, current_serving_token: 0, avg_consultation_time: 15 }])
+            .select()
+            .single();
+          
+          if (insertError) throw insertError;
+          settingsData = newSettings;
+        } else if (settingsError) {
+          throw settingsError;
+        }
+
+        const { data: queueData, error: queueError } = await supabase
+          .from('queue')
+          .select('*')
+          .order('token_number', { ascending: true });
+
+        if (queueError) throw queueError;
+
+        setSettings(settingsData);
+        setQueue(queueData || []);
+        setAvgConsultTime(settingsData.avg_consultation_time);
+      } else {
+        const storedQueue = localStorage.getItem('qc_queue');
+        const storedSettings = localStorage.getItem('qc_settings');
+
+        if (storedQueue && storedSettings) {
+          setQueue(JSON.parse(storedQueue));
+          const parsedSettings = JSON.parse(storedSettings);
+          setSettings(parsedSettings);
+          setAvgConsultTime(parsedSettings.avg_consultation_time);
+        } else {
+          setQueue(MOCK_INITIAL_QUEUE);
+          setSettings(MOCK_INITIAL_SETTINGS);
+          setAvgConsultTime(MOCK_INITIAL_SETTINGS.avg_consultation_time);
+          localStorage.setItem('qc_queue', JSON.stringify(MOCK_INITIAL_QUEUE));
+          localStorage.setItem('qc_settings', JSON.stringify(MOCK_INITIAL_SETTINGS));
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching initial data:', err);
+      setError(err.message || 'Failed to connect to Supabase database.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 2. Setup Realtime subscription
+  useEffect(() => {
+    fetchData();
+
+    if (!isSupabaseConfigured) return;
+
+    const queueChannel = supabase
+      .channel('realtime-queue')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'queue' },
+        () => {
+          supabase
+            .from('queue')
+            .select('*')
+            .order('token_number', { ascending: true })
+            .then(({ data, error }) => {
+              if (!error && data) setQueue(data);
+            });
+        }
+      )
+      .subscribe();
+
+    const settingsChannel = supabase
+      .channel('realtime-settings')
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'settings' },
+        (payload) => {
+          if (payload.new) {
+            setSettings(payload.new);
+            setAvgConsultTime(payload.new.avg_consultation_time);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(queueChannel);
+      supabase.removeChannel(settingsChannel);
+    };
+  }, []);
+
+  // 3. Action: Generate New Token (Add Patient)
+  const handleAddPatient = async (e) => {
+    e.preventDefault();
+    if (!newPatientName.trim()) return;
+    
+    setActionLoading(true);
+    try {
+      const name = newPatientName.trim();
+      
+      if (isSupabaseConfigured) {
+        const { error: insertError } = await supabase
+          .from('queue')
+          .insert([{ patient_name: name, status: 'waiting' }]);
+        
+        if (insertError) throw insertError;
+        showToast(`Token generated for ${name}!`, 'success');
+      } else {
+        const nextTokenNum = queue.length > 0 
+          ? Math.max(...queue.map(p => p.token_number)) + 1 
+          : 1;
+        
+        const newPatient = {
+          id: crypto.randomUUID(),
+          patient_name: name,
+          token_number: nextTokenNum,
+          status: 'waiting',
+          created_at: new Date().toISOString()
+        };
+
+        const updatedQueue = [...queue, newPatient];
+        setQueue(updatedQueue);
+        localStorage.setItem('qc_queue', JSON.stringify(updatedQueue));
+        showToast(`Token QC-101-${nextTokenNum} generated for ${name}!`, 'success');
+      }
+      setNewPatientName('');
+    } catch (err) {
+      console.error(err);
+      showToast(err.message || 'Failed to add patient', 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // 4. Action: Call Next Patient
+  const handleCallNext = async () => {
+    setActionLoading(true);
+    try {
+      const nextToken = settings.current_serving_token + 1;
+      const nextPatient = queue.find(p => p.token_number === nextToken);
+      const activePatient = queue.find(p => p.status === 'in-consultation');
+
+      if (isSupabaseConfigured) {
+        if (activePatient) {
+          await supabase
+            .from('queue')
+            .update({ status: 'completed' })
+            .eq('id', activePatient.id);
+        }
+
+        if (nextPatient) {
+          await supabase
+            .from('queue')
+            .update({ status: 'in-consultation' })
+            .eq('id', nextPatient.id);
+        }
+
+        const { error: settingsError } = await supabase
+          .from('settings')
+          .update({ current_serving_token: nextToken })
+          .eq('id', 1);
+
+        if (settingsError) throw settingsError;
+
+        showToast(
+          nextPatient 
+            ? `Calling Token QC-101-${nextToken}: ${nextPatient.patient_name}` 
+            : `Token QC-101-${nextToken} called.`, 
+          'success'
+        );
+      } else {
+        const updatedQueue = queue.map(p => {
+          if (p.status === 'in-consultation') {
+            return { ...p, status: 'completed' };
+          }
+          if (p.token_number === nextToken) {
+            return { ...p, status: 'in-consultation' };
+          }
+          return p;
+        });
+
+        const updatedSettings = {
+          ...settings,
+          current_serving_token: nextToken
+        };
+
+        setQueue(updatedQueue);
+        setSettings(updatedSettings);
+        
+        localStorage.setItem('qc_queue', JSON.stringify(updatedQueue));
+        localStorage.setItem('qc_settings', JSON.stringify(updatedSettings));
+
+        showToast(
+          nextPatient 
+            ? `Calling Token QC-101-${nextToken}: ${nextPatient.patient_name}` 
+            : `Token QC-101-${nextToken} called.`, 
+          'success'
+        );
+      }
+    } catch (err) {
+      console.error(err);
+      showToast(err.message || 'Failed to call next patient', 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // 5. Action: Update Average Consultation Time
+  const handleUpdateAvgTime = async (val) => {
+    const minutes = parseInt(val, 10) || 1;
+    setAvgConsultTime(minutes);
+
+    try {
+      if (isSupabaseConfigured) {
+        await supabase
+          .from('settings')
+          .update({ avg_consultation_time: minutes })
+          .eq('id', 1);
+      } else {
+        const updatedSettings = {
+          ...settings,
+          avg_consultation_time: minutes
+        };
+        setSettings(updatedSettings);
+        localStorage.setItem('qc_settings', JSON.stringify(updatedSettings));
+      }
+    } catch (err) {
+      console.error('Failed to update consultation time:', err);
+    }
+  };
+
+  // 6. Action: Reset State
+  const handleReset = async () => {
+    if (!window.confirm('Are you sure you want to reset the queue state?')) return;
+    
+    setActionLoading(true);
+    try {
+      if (isSupabaseConfigured) {
+        const { error: delError } = await supabase.from('queue').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+        if (delError) throw delError;
+
+        const { error: setErr } = await supabase
+          .from('settings')
+          .update({ current_serving_token: 1, avg_consultation_time: 15 })
+          .eq('id', 1);
+        if (setErr) throw setErr;
+
+        showToast('Database reset successfully!', 'success');
+        fetchData();
+      } else {
+        localStorage.removeItem('qc_queue');
+        localStorage.removeItem('qc_settings');
+        setQueue(MOCK_INITIAL_QUEUE);
+        setSettings(MOCK_INITIAL_SETTINGS);
+        setAvgConsultTime(MOCK_INITIAL_SETTINGS.avg_consultation_time);
+        localStorage.setItem('qc_queue', JSON.stringify(MOCK_INITIAL_QUEUE));
+        localStorage.setItem('qc_settings', JSON.stringify(MOCK_INITIAL_SETTINGS));
+        showToast('Demo data reset successfully!', 'success');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast(err.message || 'Failed to reset queue', 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Action: Remove Patient
+  const handleRemovePatient = async (id, patientName) => {
+    if (!window.confirm(`Are you sure you want to remove ${patientName} from the queue?`)) return;
+
+    setActionLoading(true);
+    try {
+      if (isSupabaseConfigured) {
+        const { error: delError } = await supabase
+          .from('queue')
+          .delete()
+          .eq('id', id);
+
+        if (delError) throw delError;
+        showToast(`${patientName} removed from queue.`, 'success');
+      } else {
+        const updatedQueue = queue.filter(p => p.id !== id);
+        setQueue(updatedQueue);
+        localStorage.setItem('qc_queue', JSON.stringify(updatedQueue));
+        showToast(`${patientName} removed from queue.`, 'success');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast(err.message || 'Failed to remove patient', 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const servingPatient = queue.find(p => p.token_number === settings.current_serving_token);
+  const upcomingQueue = queue
+    .filter(p => p.status === 'waiting' && p.token_number > settings.current_serving_token)
+    .sort((a, b) => a.token_number - b.token_number)
+    .slice(0, 3);
+
+  const waitingCount = queue.filter(p => p.status === 'waiting').length;
+  const completedCount = queue.filter(p => p.status === 'completed').length;
+
+  return (
+    <div className="min-h-screen bg-slate-50 pb-16 text-slate-800">
+      {/* Notifications */}
+      {notification && (
+        <div className={`fixed top-4 right-4 z-50 flex items-center gap-2.5 px-4 py-3 rounded-lg border text-sm font-medium shadow-sm transition-all duration-300 ${
+          notification.type === 'success' 
+            ? 'bg-emerald-50 border-emerald-200 text-emerald-800' 
+            : 'bg-rose-50 border-rose-200 text-rose-800'
+        }`}>
+          {notification.type === 'success' ? <Check className="w-4 h-4 text-emerald-600" /> : <ShieldAlert className="w-4 h-4 text-rose-600" />}
+          <span>{notification.message}</span>
+        </div>
+      )}
+
+      {/* Header */}
+      <header className="bg-white border-b border-slate-200 sticky top-0 z-40 px-6 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-slate-900 flex items-center justify-center">
+            <Activity className="w-4 h-4 text-white" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold tracking-tight text-slate-900">
+              Queue Cure
+            </h1>
+            <p className="text-[10px] text-slate-400 font-semibold tracking-wider uppercase">Clinic Queue Director</p>
+          </div>
+        </div>
+
+        {/* Connection status and actions */}
+        <div className="flex items-center gap-3">
+          {isSupabaseConfigured ? (
+            <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-md px-3 py-1 text-xs text-emerald-700 font-medium">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+              Supabase Live
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 bg-slate-100 border border-slate-200 rounded-md px-3 py-1 text-xs text-slate-600 font-medium">
+                <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                Demo Mode
+              </div>
+            </div>
+          )}
+
+          <button 
+            onClick={handleReset}
+            disabled={actionLoading}
+            className="flex items-center gap-1.5 px-3 py-1 rounded-md text-xs bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 transition"
+          >
+            <RotateCcw className="w-3 h-3" />
+            Reset State
+          </button>
+        </div>
+      </header>
+
+      {/* Main Grid Layout */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8">
+        
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-24 gap-2">
+            <div className="w-8 h-8 border-2 border-slate-350 border-t-slate-800 rounded-full animate-spin"></div>
+            <p className="text-xs text-slate-400 font-medium">Loading details...</p>
+          </div>
+        ) : error ? (
+          <div className="bg-white border border-slate-200 rounded-xl p-8 max-w-md mx-auto text-center flex flex-col items-center gap-4 mt-12">
+            <ShieldAlert className="w-12 h-12 text-rose-500" />
+            <h3 className="text-base font-bold text-slate-900">Database Connection Required</h3>
+            <p className="text-slate-500 text-xs leading-relaxed">{error}</p>
+            <button 
+              onClick={() => { isSupabaseConfigured ? fetchData() : setError(null); }}
+              className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded text-xs transition"
+            >
+              Retry
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            
+            {/* COLUMN 1: RECEPTIONIST VIEW */}
+            <section className="minimal-panel rounded-xl p-6 flex flex-col gap-6">
+              <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                <div>
+                  <h2 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                    <Users className="w-4 h-4 text-slate-700" />
+                    Receptionist Counter
+                  </h2>
+                  <p className="text-[11px] text-slate-400">Add patients and advance queue serving tokens.</p>
+                </div>
+                <span className="text-[9px] font-bold tracking-wider text-slate-400 bg-slate-100 px-2 py-0.5 rounded uppercase">
+                  Reception
+                </span>
+              </div>
+
+              {/* Add Patient Card */}
+              <div className="bg-white border border-slate-200/80 rounded-lg p-5 flex flex-col gap-3.5">
+                <h3 className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                  <UserPlus className="w-3.5 h-3.5 text-slate-500" />
+                  New Registration
+                </h3>
+                <form onSubmit={handleAddPatient} className="flex gap-2">
+                  <input
+                    type="text"
+                    required
+                    value={newPatientName}
+                    onChange={(e) => setNewPatientName(e.target.value)}
+                    placeholder="Patient Name"
+                    className="flex-1 px-3 py-2 rounded border border-slate-300 focus:outline-none focus:border-slate-400 text-xs text-slate-800 placeholder-slate-400"
+                  />
+                  <button
+                    type="submit"
+                    disabled={actionLoading}
+                    className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-medium text-xs rounded transition flex items-center gap-1 disabled:opacity-50"
+                  >
+                    Generate Token
+                  </button>
+                </form>
+              </div>
+
+              {/* Queue Control Card */}
+              <div className="bg-white border border-slate-200/80 rounded-lg p-5 flex flex-col gap-4">
+                <h3 className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                  <Play className="w-3.5 h-3.5 text-slate-500" />
+                  Queue Control
+                </h3>
+
+                <div className="flex justify-between items-center bg-slate-50 border border-slate-100 rounded px-3 py-2 text-xs">
+                  <span className="text-slate-500">Currently Serving Token:</span>
+                  <span className="font-bold text-slate-800">QC-101-{settings.current_serving_token}</span>
+                </div>
+
+                <button
+                  onClick={handleCallNext}
+                  disabled={actionLoading}
+                  className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs rounded transition flex items-center justify-center gap-1.5 disabled:opacity-50"
+                >
+                  <Play className="w-3.5 h-3.5 fill-current" />
+                  Call Next Patient
+                </button>
+              </div>
+
+              {/* Avg Consultation Time Slider */}
+              <div className="bg-white border border-slate-200/80 rounded-lg p-5 flex flex-col gap-3">
+                <h3 className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                  <SettingsIcon className="w-3.5 h-3.5 text-slate-500" />
+                  Average Consultation Time
+                </h3>
+                <div className="flex items-center justify-between gap-4">
+                  <input
+                    type="range"
+                    min="1"
+                    max="60"
+                    value={avgConsultTime}
+                    onChange={(e) => handleUpdateAvgTime(e.target.value)}
+                    className="flex-1 accent-slate-800 cursor-pointer h-1.5 bg-slate-250 rounded-lg appearance-none"
+                  />
+                  <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded px-2.5 py-1 text-xs font-semibold text-slate-700">
+                    <span>{avgConsultTime}</span>
+                    <span className="text-[10px] text-slate-400 font-normal">min</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Queue List */}
+              <div className="flex-1 flex flex-col gap-2.5">
+                <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <ListOrdered className="w-3 h-3" />
+                  Live Queue Registry ({queue.length})
+                </h3>
+                <div className="max-h-[220px] overflow-y-auto pr-1 flex flex-col gap-1.5">
+                  {queue.length === 0 ? (
+                    <div className="text-center py-6 text-xs text-slate-400 italic">No patients listed</div>
+                  ) : (
+                    queue.map((pat) => (
+                      <div 
+                        key={pat.id}
+                        className={`flex items-center justify-between px-3 py-2 rounded text-xs border ${
+                          pat.status === 'in-consultation'
+                            ? 'bg-emerald-50/50 border-emerald-200 text-emerald-800 font-medium'
+                            : pat.status === 'completed'
+                            ? 'bg-white border-slate-100 text-slate-400'
+                            : 'bg-white border-slate-200 text-slate-700'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                            pat.status === 'in-consultation'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : pat.status === 'completed'
+                              ? 'bg-slate-100 text-slate-400'
+                              : 'bg-slate-100 text-slate-700'
+                          }`}>
+                            QC-101-{pat.token_number}
+                          </span>
+                          <span className="truncate max-w-[150px]">{pat.patient_name}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={`text-[9px] font-semibold uppercase tracking-wider ${
+                            pat.status === 'in-consultation'
+                              ? 'text-emerald-600'
+                              : pat.status === 'completed'
+                              ? 'text-slate-400'
+                              : 'text-slate-500'
+                          }`}>
+                            {pat.status}
+                          </span>
+                          {pat.status === 'waiting' && (
+                            <button
+                              onClick={() => handleRemovePatient(pat.id, pat.patient_name)}
+                              disabled={actionLoading}
+                              className="flex items-center justify-center w-5 h-5 hover:bg-rose-100 active:scale-90 rounded transition disabled:opacity-50 group"
+                              title="Remove patient from queue"
+                            >
+                              <X className="w-3.5 h-3.5 text-slate-600 group-hover:text-rose-700" strokeWidth={2.5} />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </section>
+
+            {/* COLUMN 2: PATIENT WAITING ROOM VIEW */}
+            <section className="minimal-panel rounded-xl p-6 flex flex-col gap-6">
+              <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                <div>
+                  <h2 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                    <Activity className="w-4 h-4 text-slate-700" />
+                    Waiting Room Display
+                  </h2>
+                  <p className="text-[11px] text-slate-400">Public scoreboard synced for waiting patients.</p>
+                </div>
+                <span className="text-[9px] font-bold tracking-wider text-slate-400 bg-slate-100 px-2 py-0.5 rounded uppercase">
+                  Waiting Room
+                </span>
+              </div>
+
+              {/* Big Board Now Serving */}
+              <div className="bg-white border border-slate-200 rounded-xl p-8 flex flex-col items-center justify-center text-center shadow-sm">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                  Now Serving
+                </span>
+                <div className="text-6xl font-extrabold text-slate-950 my-1">
+                  {settings.current_serving_token > 0 ? `QC-101-${settings.current_serving_token}` : '—'}
+                </div>
+                <div className="mt-2 text-xs font-medium text-slate-600">
+                  {servingPatient ? servingPatient.patient_name : 'No active consultations'}
+                </div>
+              </div>
+
+              {/* Simple Stats Grid */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-white border border-slate-200 p-4 rounded-lg text-center flex flex-col gap-0.5">
+                  <span className="text-[10px] font-medium text-slate-400">Patients Waiting</span>
+                  <span className="text-lg font-bold text-slate-800">{waitingCount}</span>
+                </div>
+                <div className="bg-white border border-slate-200 p-4 rounded-lg text-center flex flex-col gap-0.5">
+                  <span className="text-[10px] font-medium text-slate-400">Patients Served</span>
+                  <span className="text-lg font-bold text-slate-800">{completedCount}</span>
+                </div>
+              </div>
+
+              {/* Minimal Timeline Queue Map */}
+              <div className="bg-white border border-slate-200 p-4 rounded-lg flex flex-col gap-2">
+                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+                  Clinic Line Queue View
+                </span>
+                <div className="flex items-center gap-1.5 overflow-x-auto py-1">
+                  {queue.length === 0 ? (
+                    <div className="text-[10px] text-slate-400 italic py-1">No active line</div>
+                  ) : (
+                    queue.map((pat, idx) => {
+                      let style = 'bg-white border-slate-200 text-slate-500';
+                      if (pat.status === 'in-consultation') {
+                        style = 'bg-emerald-600 border-transparent text-white font-bold ring-2 ring-emerald-150';
+                      } else if (pat.status === 'waiting') {
+                        style = 'bg-slate-100 border-transparent text-slate-700';
+                      }
+                      return (
+                        <div key={pat.id} className="flex items-center flex-shrink-0">
+                          <span 
+                            className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold border ${style}`}
+                            title={`${pat.patient_name} (${pat.status})`}
+                          >
+                            {pat.token_number}
+                          </span>
+                          {idx < queue.length - 1 && (
+                            <div className="w-2.5 h-[1px] bg-slate-200" />
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+              {/* Upcoming Queue List */}
+              <div className="flex-1 flex flex-col gap-2.5">
+                <div className="flex justify-between items-center border-b border-slate-100 pb-2">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Upcoming Queue (Next 3)</span>
+                  <span className="text-[9px] text-slate-400">Refreshes in real-time</span>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  {upcomingQueue.length === 0 ? (
+                    <div className="text-center py-8 bg-white border border-dashed border-slate-200 rounded-lg text-xs text-slate-400 italic">
+                      All caught up. No patients waiting.
+                    </div>
+                  ) : (
+                    upcomingQueue.map((patient) => {
+                      const waitTime = (patient.token_number - settings.current_serving_token) * settings.avg_consultation_time;
+
+                      return (
+                        <div 
+                          key={patient.id} 
+                          className="bg-white border border-slate-200 p-3.5 rounded-lg flex items-center justify-between"
+                        >
+                          <div className="flex items-center gap-3">
+                            <span className="w-8 h-8 rounded bg-slate-100 text-slate-700 text-xs font-bold flex items-center justify-center">
+                              QC-101-{patient.token_number}
+                            </span>
+                            <div>
+                              <h4 className="font-bold text-slate-800 text-xs">{patient.patient_name}</h4>
+                              <p className="text-[9px] text-slate-400 mt-0.5">Estimated Turn</p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-[11px] font-semibold text-slate-600">
+                            <Clock className="w-3 h-3 text-slate-400" />
+                            <span>{waitTime} min wait</span>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            </section>
+            
+          </div>
+        )}
+        
+      </main>
+
+      {/* Footer */}
+      <footer className="mt-16 text-center text-slate-400 text-[11px]">
+        <p>Queue Cure Clinic Board • Clean Minimal Edition</p>
+      </footer>
+    </div>
+  );
+}
