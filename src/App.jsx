@@ -614,7 +614,7 @@ export default function App() {
             <section className="minimal-panel rounded-xl p-6 flex flex-col gap-6">
               <div className="flex justify-between items-center border-b border-slate-100 pb-3">
                 <div>
-                  <h2 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                  <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
                     <Users className="w-4 h-4 text-slate-700" />
                     Receptionist Counter
                   </h2>
@@ -627,8 +627,8 @@ export default function App() {
 
               {/* Assign Doctor Card */}
               <div className="bg-white border border-slate-200/80 rounded-lg p-5 flex flex-col gap-3.5">
-                <h3 className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
-                  <Users className="w-3.5 h-3.5 text-slate-500" />
+                <h3 className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
+                  <Users className="w-4 h-4 text-slate-600" />
                   Assign Doctor
                 </h3>
                 
@@ -674,17 +674,26 @@ export default function App() {
                             key={doc.id}
                             type="button"
                             onClick={() => setSelectedDoctor(selectedDoctor?.id === doc.id ? null : doc)}
-                            className={`flex items-center justify-between p-2 rounded border text-left text-xs transition ${
+                            className={`flex items-center justify-between gap-3 p-2 rounded border text-left text-xs transition ${
                               selectedDoctor?.id === doc.id
                                 ? 'bg-slate-900 text-white border-slate-900'
                                 : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
                             }`}
                           >
-                            <div>
-                              <div className="font-semibold">{doc.name}</div>
+                            {/* Left: name + department */}
+                            <div className="min-w-0">
+                              <div className="font-semibold truncate">{doc.name}</div>
                               <div className={`text-[10px] ${selectedDoctor?.id === doc.id ? 'text-slate-300' : 'text-slate-500'}`}>
                                 {doc.department}{doc.chamber ? ` • Room ${doc.chamber}` : ''}
                               </div>
+                            </div>
+                            {/* Right: status badge */}
+                            <div className="shrink-0">
+                              {doc.accepting === false ? (
+                                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-600 whitespace-nowrap">Not Accepting</span>
+                              ) : (
+                                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 whitespace-nowrap">Accepting</span>
+                              )}
                             </div>
                           </button>
                         ))}
@@ -704,8 +713,8 @@ export default function App() {
                   </div>
                 )}
 
-                <h3 className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
-                  <UserPlus className="w-3.5 h-3.5 text-slate-500" />
+                <h3 className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
+                  <UserPlus className="w-4 h-4 text-slate-600" />
                   New Registration
                 </h3>
                 <form onSubmit={handleAddPatient} className="flex flex-col gap-3">
@@ -789,8 +798,8 @@ export default function App() {
               <div className="bg-white border border-slate-200 rounded-lg p-5 flex flex-col gap-4 shadow-sm">
                 {!isDoctorLoggedIn ? (
                   <div>
-                    <h3 className="text-[11px] font-semibold text-slate-500 flex items-center gap-1.5 border-b border-slate-100 pb-2 mb-3">
-                      <Users className="w-3 h-3 text-slate-400" />
+                    <h3 className="text-sm font-bold text-slate-800 flex items-center gap-1.5 border-b border-slate-100 pb-2 mb-3">
+                      <Users className="w-4 h-4 text-slate-600" />
                       Dr. Login / Register
                     </h3>
                     <form onSubmit={handleDoctorSubmit} className="flex flex-col gap-2">
@@ -994,6 +1003,12 @@ export default function App() {
                         onClick={() => {
                           setIsDoctorLoggedIn(false);
                           setLoggedInDoctor(null);
+                          setDocName('');
+                          setDocPhone('');
+                          setDocDept('');
+                          setDocChamber('');
+                          setDetectedDoctor(null);
+                          setDocSuggestions([]);
                         }}
                         className="text-[10px] text-slate-400 hover:text-slate-650 border border-slate-200 rounded px-2 py-0.5 transition"
                       >
@@ -1021,8 +1036,8 @@ export default function App() {
                       <div className="grid grid-cols-2 gap-2">
                         <button
                           onClick={() => handleDocCallNext(loggedInDoctor.name)}
-                          disabled={actionLoading}
-                          className="py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs rounded transition disabled:opacity-50"
+                          disabled={actionLoading || !loggedInDoctor.accepting}
+                          className="py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs rounded transition disabled:opacity-40 disabled:cursor-not-allowed"
                         >
                           Call Next Patient
                         </button>
@@ -1067,7 +1082,7 @@ export default function App() {
             <section className="minimal-panel rounded-xl p-6 flex flex-col gap-6">
               <div className="flex justify-between items-center border-b border-slate-100 pb-3">
                 <div>
-                  <h2 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                  <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
                     <Activity className="w-4 h-4 text-slate-700" />
                     Waiting Room Display
                   </h2>
