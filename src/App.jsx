@@ -24,12 +24,12 @@ import { downloadSessionReport } from './utils/docxGenerator';
 
 // Pre-seeded mock data for Demo Mode
 const MOCK_INITIAL_QUEUE = [
-  { id: '1', patient_name: 'David Miller', token_number: 1, doctor_name: 'Dr. Sarah Jenkins', status: 'in-consultation', created_at: new Date(Date.now() - 3600000).toISOString() },
-  { id: '2', patient_name: 'Emily Watson', token_number: 2, doctor_name: 'Dr. James Carter', status: 'waiting', created_at: new Date(Date.now() - 2400000).toISOString() },
-  { id: '3', patient_name: 'Robert Downey', token_number: 3, doctor_name: 'Dr. Elena Rostova', status: 'waiting', created_at: new Date(Date.now() - 1200000).toISOString() },
-  { id: '4', patient_name: 'Sarah Connor', token_number: 4, doctor_name: 'Dr. Marcus Vance', status: 'waiting', created_at: new Date(Date.now() - 600000).toISOString() },
-  { id: '5', patient_name: 'Bruce Wayne', token_number: 5, doctor_name: 'Dr. Robert Chen', status: 'waiting', created_at: new Date(Date.now() - 300000).toISOString() },
-  { id: '6', patient_name: 'Clark Kent', token_number: 6, doctor_name: 'Dr. Lisa Kudrow', status: 'waiting', created_at: new Date(Date.now() - 100000).toISOString() }
+  { id: '1', patient_name: 'David Miller', token_number: 1, doctor_name: 'Dr. Sarah Jenkins', status: 'in-consultation', phone_number: '9876543210', created_at: new Date(Date.now() - 3600000).toISOString() },
+  { id: '2', patient_name: 'Emily Watson', token_number: 2, doctor_name: 'Dr. James Carter', status: 'waiting', phone_number: '9876543211', created_at: new Date(Date.now() - 2400000).toISOString() },
+  { id: '3', patient_name: 'Robert Downey', token_number: 3, doctor_name: 'Dr. Elena Rostova', status: 'waiting', phone_number: '9876543212', created_at: new Date(Date.now() - 1200000).toISOString() },
+  { id: '4', patient_name: 'Sarah Connor', token_number: 4, doctor_name: 'Dr. Marcus Vance', status: 'waiting', phone_number: '9876543213', created_at: new Date(Date.now() - 600000).toISOString() },
+  { id: '5', patient_name: 'Bruce Wayne', token_number: 5, doctor_name: 'Dr. Robert Chen', status: 'waiting', phone_number: '9876543214', created_at: new Date(Date.now() - 300000).toISOString() },
+  { id: '6', patient_name: 'Clark Kent', token_number: 6, doctor_name: 'Dr. Lisa Kudrow', status: 'waiting', phone_number: '9876543215', created_at: new Date(Date.now() - 100000).toISOString() }
 ];
 
 const MOCK_INITIAL_SETTINGS = {
@@ -121,6 +121,9 @@ export default function App() {
 
   const [currentPrescriptionNo, setCurrentPrescriptionNo] = useState('');
   const [sessionNameInput, setSessionNameInput] = useState('');
+
+  // SMS/WhatsApp Modal State
+  const [smsModalPatient, setSmsModalPatient] = useState(null);
 
   useEffect(() => {
     localStorage.setItem('qc_doctors', JSON.stringify(doctorsList));
@@ -614,16 +617,18 @@ export default function App() {
     }
   };
 
-  // Action: Notify Patient via SMS (Simulated)
-  const handleSendSMS = (patient) => {
-    const phone = patient.phone_number || '';
-    if (!phone || phone === 'N/A') {
-      showToast('No phone number registered for this patient.', 'error');
-      return;
+  // Action: Clean phone number to digits and prepend India (+91) if 10-digits
+  const getCleanPhone = (phone) => {
+    let cleaned = phone.replace(/\D/g, ''); 
+    if (cleaned.length === 10) {
+      cleaned = '91' + cleaned;
     }
-    const message = `Dear ${patient.patient_name}, your token QC-101-${patient.token_number} is about to be called. Please make your way to the consultation area.`;
-    alert(`[SIMULATED SMS to ${phone}]:\n"${message}"`);
-    showToast(`Notification sent to ${patient.patient_name}!`, 'success');
+    return cleaned;
+  };
+
+  // Action: Open notification modal
+  const handleSendSMS = (patient) => {
+    setSmsModalPatient(patient);
   };
 
   // Doctor login/registration handler
@@ -821,88 +826,16 @@ export default function App() {
       )}
 
       {/* Header */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-40 px-6 py-3.5 flex flex-col sm:flex-row justify-between items-center gap-4 shadow-[0_1px_3px_rgba(0,0,0,0.01)]">
+      <header className="bg-white border-b border-slate-200 sticky top-0 z-40 px-6 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
         <div className="flex items-center gap-3">
-          {/* Logo SVG matching the reference */}
-          <div className="w-9 h-9 flex items-center justify-center shrink-0">
-            <svg viewBox="0 0 100 100" className="w-9 h-9">
-              <defs>
-                <linearGradient id="qOutlineGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="#0B2F61" />
-                  <stop offset="40%" stopColor="#0D4B8A" />
-                  <stop offset="100%" stopColor="#0284c7" />
-                </linearGradient>
-                <linearGradient id="qPulseGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%" stopColor="#0284c7" />
-                  <stop offset="60%" stopColor="#0ea5e9" />
-                  <stop offset="100%" stopColor="#06b6d4" />
-                </linearGradient>
-              </defs>
-              {/* Stylized 'Q' shape */}
-              <path 
-                d="M 32,22 
-                   C 42,16 58,16 68,22 
-                   C 80,30 84,45 80,58 
-                   C 76,70 64,80 50,80 
-                   C 44,80 38,78 34,75 
-                   L 26,82 
-                   L 24,70 
-                   C 18,62 16,50 20,38 
-                   C 22,30 26,25 32,22 Z" 
-                fill="none" 
-                stroke="url(#qOutlineGrad)" 
-                strokeWidth="7" 
-                strokeLinecap="round" 
-                strokeLinejoin="round" 
-              />
-              <path 
-                d="M 50,80 L 68,80 C 74,80 80,74 80,68" 
-                fill="none" 
-                stroke="url(#qOutlineGrad)" 
-                strokeWidth="7" 
-                strokeLinecap="round" 
-              />
-              {/* ECG / heartbeat line ending in arrow */}
-              <path 
-                d="M 18,50 
-                   L 38,50 
-                   L 44,38 
-                   L 52,65 
-                   L 60,32 
-                   L 68,54 
-                   L 73,50 
-                   L 84,50" 
-                fill="none" 
-                stroke="url(#qPulseGrad)" 
-                strokeWidth="4.5" 
-                strokeLinecap="round" 
-                strokeLinejoin="round" 
-              />
-              {/* Arrow Head */}
-              <path 
-                d="M 78,44 L 86,50 L 78,56" 
-                fill="none" 
-                stroke="url(#qPulseGrad)" 
-                strokeWidth="4" 
-                strokeLinecap="round" 
-                strokeLinejoin="round" 
-              />
-              {/* Plus (+) icon in the top right */}
-              <path 
-                d="M 76,20 L 86,20 M 81,15 L 81,25" 
-                fill="none" 
-                stroke="#0ea5e9" 
-                strokeWidth="2.5" 
-                strokeLinecap="round" 
-              />
-            </svg>
+          <div className="w-8 h-8 rounded-lg bg-slate-900 flex items-center justify-center">
+            <Activity className="w-4 h-4 text-white" />
           </div>
           <div>
-            <div className="flex items-center text-lg font-extrabold tracking-tight">
-              <span className="text-[#0B2F61]">Queue</span>
-              <span className="text-sky-500 ml-1">Cure</span>
-            </div>
-            <p className="text-[9px] text-slate-400 font-bold tracking-wider uppercase">Clinic Queue Director</p>
+            <h1 className="text-xl font-bold tracking-tight text-slate-900">
+              Queue Cure
+            </h1>
+            <p className="text-[10px] text-slate-400 font-semibold tracking-wider uppercase">Clinic Queue Director</p>
           </div>
         </div>
       </header>
@@ -1625,10 +1558,10 @@ export default function App() {
                             </span>
                             <button
                               onClick={() => handleSendSMS(patient)}
-                              className="text-[9px] bg-sky-50 hover:bg-sky-100 text-sky-700 font-semibold px-1.5 py-0.5 rounded border border-sky-150 transition"
-                              title="Notify patient via SMS"
+                              className="text-[9px] bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-semibold px-1.5 py-0.5 rounded border border-emerald-150 transition"
+                              title="Notify patient via WhatsApp"
                             >
-                              SMS
+                              WhatsApp
                             </button>
                           </div>
                           <h4 className="font-bold text-slate-800 text-xs truncate">{patient.patient_name}</h4>
@@ -1794,6 +1727,67 @@ export default function App() {
       <footer className="mt-16 text-center text-slate-400 text-[11px]">
         <p>Queue Cure Clinic Board • Clean Minimal Edition</p>
       </footer>
+      {/* WhatsApp Notification Modal */}
+      {smsModalPatient && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-[2px] animate-fadeIn">
+          <div className="bg-white border border-slate-200 rounded-xl p-5 max-w-sm w-full shadow-lg flex flex-col gap-4 animate-scaleUp">
+            {/* Header */}
+            <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
+              <h3 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+                Notify Patient (WhatsApp)
+              </h3>
+              <button 
+                onClick={() => setSmsModalPatient(null)} 
+                className="text-slate-400 hover:text-slate-600 font-extrabold text-sm"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Patient Info */}
+            <div className="bg-slate-50 border border-slate-150 rounded-lg p-3 text-[11px] flex flex-col gap-1.5 text-slate-650">
+              <div>
+                <span className="font-semibold text-slate-500">Patient:</span>{' '}
+                <strong className="text-slate-800 font-bold">{smsModalPatient.patient_name}</strong>
+              </div>
+              <div>
+                <span className="font-semibold text-slate-500">Token:</span>{' '}
+                <strong className="text-slate-800 font-bold">QC-101-{smsModalPatient.token_number}</strong>
+              </div>
+              <div>
+                <span className="font-semibold text-slate-500">Mobile No:</span>{' '}
+                <strong className="text-slate-800 font-bold">{smsModalPatient.phone_number || 'N/A'}</strong>
+              </div>
+            </div>
+
+            {/* Message Preview */}
+            <div className="flex flex-col gap-1">
+              <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">Message Preview</label>
+              <div className="bg-slate-50 border border-slate-200/80 rounded p-2.5 text-[11px] italic text-slate-700 leading-normal">
+                "Dear {smsModalPatient.patient_name}, your turn has arrived for your consultation (assigned: {smsModalPatient.doctor_name || 'Doctor'}). Please report to the clinic chamber within the next 5 minutes. Thank you."
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex flex-col gap-2 mt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  const cleanPhone = getCleanPhone(smsModalPatient.phone_number);
+                  const message = `Dear ${smsModalPatient.patient_name}, your turn has arrived for your consultation (assigned: ${smsModalPatient.doctor_name || 'Doctor'}). Please report to the clinic chamber within the next 5 minutes. Thank you.`;
+                  window.open(`https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(message)}`, '_blank');
+                  showToast('WhatsApp composer opened!', 'success');
+                  setSmsModalPatient(null);
+                }}
+                className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded transition flex items-center justify-center gap-1.5 cursor-pointer shadow-md"
+              >
+                Send via WhatsApp
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
