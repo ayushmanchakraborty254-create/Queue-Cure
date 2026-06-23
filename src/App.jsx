@@ -15,8 +15,12 @@ import {
   Search,
   ChevronUp,
   ChevronDown,
-  MoreVertical
+  MoreVertical,
+  Download,
+  BookOpen,
+  FileText
 } from 'lucide-react';
+import { downloadSessionReport } from './utils/docxGenerator';
 
 // Pre-seeded mock data for Demo Mode
 const MOCK_INITIAL_QUEUE = [
@@ -83,9 +87,52 @@ export default function App() {
     return savedDocs ? JSON.parse(savedDocs) : MOCK_DOCTORS.map(d => ({ ...d, accepting: true }));
   });
 
+  const [sessionHistory, setSessionHistory] = useState(() => {
+    const saved = localStorage.getItem('qc_session_history');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (parsed.length > 0) return parsed;
+    }
+    const demoHistory = [{
+      id: 'demo-session-1',
+      sessionName: 'Cardiology Morning OPD',
+      doctorName: 'Dr. Sarah Jenkins',
+      department: 'Cardiology',
+      chamber: 'Room 102',
+      startTime: new Date(Date.now() - 3600000 * 4).toISOString(), // 4 hours ago
+      endTime: new Date(Date.now() - 3600000 * 2.5).toISOString(), // 2.5 hours ago
+      attendedPatients: [
+        { patient_name: 'David Miller', token_number: 1, prescriptionNo: 'RX-CARD-1002' },
+        { patient_name: 'Emily Watson', token_number: 2, prescriptionNo: 'RX-CARD-1003' },
+        { patient_name: 'Bruce Wayne', token_number: 5, prescriptionNo: 'RX-CARD-1004' }
+      ],
+      unattendedPatients: [
+        { patient_name: 'Clark Kent', token_number: 6 }
+      ]
+    }];
+    localStorage.setItem('qc_session_history', JSON.stringify(demoHistory));
+    return demoHistory;
+  });
+
+  const [activeSessions, setActiveSessions] = useState(() => {
+    const saved = localStorage.getItem('qc_active_sessions');
+    return saved ? JSON.parse(saved) : {};
+  });
+
+  const [currentPrescriptionNo, setCurrentPrescriptionNo] = useState('');
+  const [sessionNameInput, setSessionNameInput] = useState('');
+
   useEffect(() => {
     localStorage.setItem('qc_doctors', JSON.stringify(doctorsList));
   }, [doctorsList]);
+
+  useEffect(() => {
+    localStorage.setItem('qc_session_history', JSON.stringify(sessionHistory));
+  }, [sessionHistory]);
+
+  useEffect(() => {
+    localStorage.setItem('qc_active_sessions', JSON.stringify(activeSessions));
+  }, [activeSessions]);
 
   // Notifications helper
   const showToast = (message, type = 'success') => {
@@ -320,8 +367,40 @@ export default function App() {
     }
   };
 
+  // Action: Start Doctor Consulting Session
+  const handleStartSession = (e) => {
+    e.preventDefault();
+    if (!loggedInDoctor) return;
+    const sessionName = sessionNameInput.trim() || `Session ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
+    const newSession = {
+      id: crypto.randomUUID(),
+      doctorName: loggedInDoctor.name,
+      doctorDept: loggedInDoctor.department || 'N/A',
+      doctorChamber: loggedInDoctor.chamber || '101',
+      doctorPhone: loggedInDoctor.phone || 'N/A',
+      sessionName,
+      startTime: new Date().toISOString(),
+      endTime: null,
+      attendedPatients: [],
+      unattendedPatients: []
+    };
+    setActiveSessions(prev => ({
+      ...prev,
+      [loggedInDoctor.phone]: newSession
+    }));
+    setSessionNameInput('');
+    showToast(`Session "${sessionName}" started!`, 'success');
+  };
+
   // Action: Doctor-specific Call Next Patient
   const handleDocCallNext = async (doctorName) => {
+    // Verify session is active
+    const currentSession = activeSessions[loggedInDoctor?.phone];
+    if (!currentSession) {
+      showToast('Please start a session before consulting patients.', 'error');
+      return;
+    }
+
     setActionLoading(true);
     try {
       const activePatient = queue.find(p => p.status === 'in-consultation' && p.doctor_name === doctorName);
@@ -358,7 +437,6 @@ export default function App() {
           .eq('id', 1);
 
         if (settingsError) throw settingsError;
-        showToast(`Calling patient: ${nextPatient.patient_name}`, 'success');
       } else {
         const updatedQueue = queue.map(p => {
           if (p.status === 'in-consultation' && p.doctor_name === doctorName) return { ...p, status: 'completed' };
@@ -372,8 +450,33 @@ export default function App() {
         setSettings(updatedSettings);
         localStorage.setItem('qc_queue', JSON.stringify(updatedQueue));
         localStorage.setItem('qc_settings', JSON.stringify(updatedSettings));
-        showToast(`Calling patient: ${nextPatient.patient_name}`, 'success');
       }
+
+      // Log previous patient to session history
+      if (activePatient) {
+        const newAttended = {
+          id: activePatient.id,
+          patient_name: activePatient.patient_name,
+          token_number: activePatient.token_number,
+          phone_number: activePatient.phone_number || 'N/A',
+          prescription_no: currentPrescriptionNo.trim() || 'N/A',
+          attendedAt: new Date().toISOString()
+        };
+        setActiveSessions(prev => {
+          const s = prev[loggedInDoctor.phone];
+          if (!s) return prev;
+          return {
+            ...prev,
+            [loggedInDoctor.phone]: {
+              ...s,
+              attendedPatients: [...s.attendedPatients, newAttended]
+            }
+          };
+        });
+        setCurrentPrescriptionNo('');
+      }
+
+      showToast(`Calling patient: ${nextPatient.patient_name}`, 'success');
     } catch (err) {
       console.error(err);
       showToast('Error calling patient', 'error');
@@ -382,13 +485,13 @@ export default function App() {
     }
   };
 
-  // Action: Doctor end session
+  // Action: Doctor end patient consultation
   const handleDocEndSession = async (doctorName) => {
     setActionLoading(true);
     try {
       const activePatient = queue.find(p => p.status === 'in-consultation' && p.doctor_name === doctorName);
       if (!activePatient) {
-        showToast('No active session to end.', 'error');
+        showToast('No active consultation to end.', 'error');
         setActionLoading(false);
         return;
       }
@@ -403,10 +506,109 @@ export default function App() {
         setQueue(updatedQueue);
         localStorage.setItem('qc_queue', JSON.stringify(updatedQueue));
       }
-      showToast('Session ended successfully.', 'success');
+
+      // Log to session history
+      const currentSession = activeSessions[loggedInDoctor?.phone];
+      if (currentSession) {
+        const newAttended = {
+          id: activePatient.id,
+          patient_name: activePatient.patient_name,
+          token_number: activePatient.token_number,
+          phone_number: activePatient.phone_number || 'N/A',
+          prescription_no: currentPrescriptionNo.trim() || 'N/A',
+          attendedAt: new Date().toISOString()
+        };
+        setActiveSessions(prev => {
+          const s = prev[loggedInDoctor.phone];
+          if (!s) return prev;
+          return {
+            ...prev,
+            [loggedInDoctor.phone]: {
+              ...s,
+              attendedPatients: [...s.attendedPatients, newAttended]
+            }
+          };
+        });
+      }
+      setCurrentPrescriptionNo('');
+
+      showToast('Consultation completed.', 'success');
     } catch (err) {
       console.error(err);
-      showToast('Error ending session.', 'error');
+      showToast('Error ending consultation.', 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Action: Close session and compile report
+  const handleDocCloseSession = async (doctorName) => {
+    if (!window.confirm('Are you sure you want to end this session and generate a report?')) return;
+
+    setActionLoading(true);
+    try {
+      const currentSession = activeSessions[loggedInDoctor?.phone];
+      if (!currentSession) {
+        showToast('No active session to close.', 'error');
+        setActionLoading(false);
+        return;
+      }
+
+      const activePatient = queue.find(p => p.status === 'in-consultation' && p.doctor_name === doctorName);
+      let updatedSession = { ...currentSession };
+
+      if (activePatient) {
+        // Complete patient
+        if (isSupabaseConfigured) {
+          await supabase
+            .from('queue')
+            .update({ status: 'completed' })
+            .eq('id', activePatient.id);
+        } else {
+          const updatedQueue = queue.map(p => p.id === activePatient.id ? { ...p, status: 'completed' } : p);
+          setQueue(updatedQueue);
+          localStorage.setItem('qc_queue', JSON.stringify(updatedQueue));
+        }
+
+        const newAttended = {
+          id: activePatient.id,
+          patient_name: activePatient.patient_name,
+          token_number: activePatient.token_number,
+          phone_number: activePatient.phone_number || 'N/A',
+          prescription_no: currentPrescriptionNo.trim() || 'N/A',
+          attendedAt: new Date().toISOString()
+        };
+        updatedSession.attendedPatients = [...updatedSession.attendedPatients, newAttended];
+        setCurrentPrescriptionNo('');
+      }
+
+      // Collect unattended patients assigned to this doctor
+      const unattendedPatients = queue
+        .filter(p => p.status === 'waiting' && p.doctor_name === doctorName)
+        .map(p => ({
+          id: p.id,
+          patient_name: p.patient_name,
+          token_number: p.token_number,
+          phone_number: p.phone_number || 'N/A'
+        }));
+
+      updatedSession.endTime = new Date().toISOString();
+      updatedSession.unattendedPatients = unattendedPatients;
+
+      // Add to history
+      setSessionHistory(prev => [updatedSession, ...prev]);
+
+      // Remove from active sessions
+      setActiveSessions(prev => {
+        const copy = { ...prev };
+        delete copy[loggedInDoctor.phone];
+        return copy;
+      });
+
+      showToast(`Session "${updatedSession.sessionName}" closed and report saved!`, 'success');
+    } catch (err) {
+      console.error(err);
+      showToast('Error closing session.', 'error');
     } finally {
       setActionLoading(false);
     }
@@ -619,16 +821,88 @@ export default function App() {
       )}
 
       {/* Header */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-40 px-6 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
+      <header className="bg-white border-b border-slate-200 sticky top-0 z-40 px-6 py-3.5 flex flex-col sm:flex-row justify-between items-center gap-4 shadow-[0_1px_3px_rgba(0,0,0,0.01)]">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-slate-900 flex items-center justify-center">
-            <Activity className="w-4 h-4 text-white" />
+          {/* Logo SVG matching the reference */}
+          <div className="w-9 h-9 flex items-center justify-center shrink-0">
+            <svg viewBox="0 0 100 100" className="w-9 h-9">
+              <defs>
+                <linearGradient id="qOutlineGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#0B2F61" />
+                  <stop offset="40%" stopColor="#0D4B8A" />
+                  <stop offset="100%" stopColor="#0284c7" />
+                </linearGradient>
+                <linearGradient id="qPulseGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor="#0284c7" />
+                  <stop offset="60%" stopColor="#0ea5e9" />
+                  <stop offset="100%" stopColor="#06b6d4" />
+                </linearGradient>
+              </defs>
+              {/* Stylized 'Q' shape */}
+              <path 
+                d="M 32,22 
+                   C 42,16 58,16 68,22 
+                   C 80,30 84,45 80,58 
+                   C 76,70 64,80 50,80 
+                   C 44,80 38,78 34,75 
+                   L 26,82 
+                   L 24,70 
+                   C 18,62 16,50 20,38 
+                   C 22,30 26,25 32,22 Z" 
+                fill="none" 
+                stroke="url(#qOutlineGrad)" 
+                strokeWidth="7" 
+                strokeLinecap="round" 
+                strokeLinejoin="round" 
+              />
+              <path 
+                d="M 50,80 L 68,80 C 74,80 80,74 80,68" 
+                fill="none" 
+                stroke="url(#qOutlineGrad)" 
+                strokeWidth="7" 
+                strokeLinecap="round" 
+              />
+              {/* ECG / heartbeat line ending in arrow */}
+              <path 
+                d="M 18,50 
+                   L 38,50 
+                   L 44,38 
+                   L 52,65 
+                   L 60,32 
+                   L 68,54 
+                   L 73,50 
+                   L 84,50" 
+                fill="none" 
+                stroke="url(#qPulseGrad)" 
+                strokeWidth="4.5" 
+                strokeLinecap="round" 
+                strokeLinejoin="round" 
+              />
+              {/* Arrow Head */}
+              <path 
+                d="M 78,44 L 86,50 L 78,56" 
+                fill="none" 
+                stroke="url(#qPulseGrad)" 
+                strokeWidth="4" 
+                strokeLinecap="round" 
+                strokeLinejoin="round" 
+              />
+              {/* Plus (+) icon in the top right */}
+              <path 
+                d="M 76,20 L 86,20 M 81,15 L 81,25" 
+                fill="none" 
+                stroke="#0ea5e9" 
+                strokeWidth="2.5" 
+                strokeLinecap="round" 
+              />
+            </svg>
           </div>
           <div>
-            <h1 className="text-xl font-bold tracking-tight text-slate-900">
-              Queue Cure
-            </h1>
-            <p className="text-[10px] text-slate-400 font-semibold tracking-wider uppercase">Clinic Queue Director</p>
+            <div className="flex items-center text-lg font-extrabold tracking-tight">
+              <span className="text-[#0B2F61]">Queue</span>
+              <span className="text-sky-500 ml-1">Cure</span>
+            </div>
+            <p className="text-[9px] text-slate-400 font-bold tracking-wider uppercase">Clinic Queue Director</p>
           </div>
         </div>
       </header>
@@ -1063,43 +1337,128 @@ export default function App() {
                     </div>
 
                     <div className="flex flex-col gap-3">
-                      <div className="bg-slate-50 border border-slate-150 rounded p-3 flex flex-col gap-1.5">
-                        <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Active Patient</span>
-                        {queue.some(p => p.status === 'in-consultation' && p.doctor_name === loggedInDoctor.name) ? (
-                          <div>
-                            <div className="text-xs font-bold text-slate-800">
-                              {queue.find(p => p.status === 'in-consultation' && p.doctor_name === loggedInDoctor.name).patient_name}
-                            </div>
-                            <div className="text-[10px] text-slate-550 mt-0.5">
-                              Token: QC-101-{queue.find(p => p.status === 'in-consultation' && p.doctor_name === loggedInDoctor.name).token_number}
-                            </div>
-                          </div>
-                        ) : (
-                          <span className="text-xs text-slate-400 italic">No active patient in chamber.</span>
-                        )}
-                      </div>
+                      {/* Check if doctor has an active session */}
+                      {!activeSessions[loggedInDoctor.phone] ? (
+                        <div className="flex flex-col gap-3 py-1 border-t border-slate-100 mt-1 pt-3 animate-fadeIn">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Consultation Session</span>
+                          <form onSubmit={handleStartSession} className="flex flex-col gap-2">
+                            <input
+                              type="text"
+                              value={sessionNameInput}
+                              onChange={(e) => setSessionNameInput(e.target.value)}
+                              placeholder="Session name (e.g. Morning OPD)"
+                              className="w-full px-3 py-2 rounded border border-slate-350 focus:outline-none focus:border-slate-400 text-xs text-slate-800 bg-white placeholder-slate-400"
+                            />
+                            <button
+                              type="submit"
+                              className="w-full py-2 bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs rounded transition flex items-center justify-center gap-1.5 cursor-pointer"
+                            >
+                              <BookOpen className="w-3.5 h-3.5" />
+                              Start Session
+                            </button>
+                          </form>
+                        </div>
+                      ) : (
+                        (() => {
+                          const currentSession = activeSessions[loggedInDoctor.phone];
+                          const hasActivePatient = queue.some(p => p.status === 'in-consultation' && p.doctor_name === loggedInDoctor.name);
+                          return (
+                            <div className="flex flex-col gap-3.5 animate-fadeIn">
+                              {/* Session Banner */}
+                              <div className="bg-emerald-50 border border-emerald-100 rounded p-2.5 flex items-center justify-between shadow-sm">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <span className="relative flex h-2 w-2 shrink-0">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                                  </span>
+                                  <span className="text-[11px] font-bold text-emerald-800 truncate" title={currentSession.sessionName}>
+                                    Active: {currentSession.sessionName}
+                                  </span>
+                                </div>
+                                <span className="text-[9px] font-bold text-emerald-700 bg-white px-2 py-0.5 rounded border border-emerald-250 shrink-0 shadow-sm">
+                                  {currentSession.attendedPatients.length} Attended
+                                </span>
+                              </div>
 
-                      <div className="grid grid-cols-2 gap-2">
-                        <button
-                          onClick={() => handleDocCallNext(loggedInDoctor.name)}
-                          disabled={actionLoading || !loggedInDoctor.accepting}
-                          className="py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs rounded transition disabled:opacity-40 disabled:cursor-not-allowed"
-                        >
-                          Call Next Patient
-                        </button>
-                        <button
-                          onClick={() => handleDocEndSession(loggedInDoctor.name)}
-                          disabled={actionLoading}
-                          className="py-2 bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs rounded transition disabled:opacity-50"
-                        >
-                          End Session
-                        </button>
-                      </div>
+                              {/* Active Patient Details */}
+                              <div className="bg-slate-50 border border-slate-200 rounded p-3.5 flex flex-col gap-2">
+                                <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Active Patient</span>
+                                {hasActivePatient ? (
+                                  (() => {
+                                    const activePatient = queue.find(p => p.status === 'in-consultation' && p.doctor_name === loggedInDoctor.name);
+                                    return (
+                                      <div className="flex flex-col gap-3">
+                                        <div className="flex justify-between items-start">
+                                          <div>
+                                            <div className="text-xs font-extrabold text-slate-800">
+                                              {activePatient.patient_name}
+                                            </div>
+                                            <div className="text-[10px] text-slate-400 font-semibold mt-0.5">
+                                              Token: QC-101-{activePatient.token_number}
+                                            </div>
+                                          </div>
+                                        </div>
+                                        <div className="flex flex-col gap-1 border-t border-slate-200/80 pt-2.5">
+                                          <label className="text-[9.5px] font-bold text-slate-450 uppercase tracking-wide">Prescription No.</label>
+                                          <input
+                                            type="text"
+                                            value={currentPrescriptionNo}
+                                            onChange={(e) => setCurrentPrescriptionNo(e.target.value)}
+                                            placeholder="Enter prescription no. or details..."
+                                            className="w-full px-2 py-1.5 rounded border border-slate-300 focus:outline-none focus:border-slate-400 text-xs text-slate-800 bg-white placeholder-slate-400"
+                                          />
+                                        </div>
+                                      </div>
+                                    );
+                                  })()
+                                ) : (
+                                  <span className="text-xs text-slate-400 italic">No active patient in consultation.</span>
+                                )}
+                              </div>
 
-                      <div className="flex gap-2 mt-1">
+                              {/* Controls */}
+                              <div className="grid grid-cols-2 gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => handleDocCallNext(loggedInDoctor.name)}
+                                  disabled={actionLoading || !loggedInDoctor.accepting}
+                                  className="py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-200 disabled:text-slate-400 text-white font-semibold text-xs rounded transition flex items-center justify-center gap-1 cursor-pointer disabled:cursor-not-allowed"
+                                >
+                                  <Play className="w-3 h-3 fill-current" />
+                                  Call Next Patient
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDocEndSession(loggedInDoctor.name)}
+                                  disabled={actionLoading || !hasActivePatient}
+                                  className="py-2 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-200 disabled:text-slate-400 text-white font-semibold text-xs rounded transition flex items-center justify-center gap-1 cursor-pointer"
+                                >
+                                  <Check className="w-3.5 h-3.5" />
+                                  End Consult
+                                </button>
+                              </div>
+
+                              {/* Close Session and Report button */}
+                              <button
+                                type="button"
+                                onClick={() => handleDocCloseSession(loggedInDoctor.name)}
+                                disabled={actionLoading}
+                                className="w-full py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-250 font-semibold text-xs rounded transition flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
+                              >
+                                <X className="w-3.5 h-3.5 text-slate-500" />
+                                End Session & Save Report
+                              </button>
+                            </div>
+                          );
+                        })()
+                      )}
+
+                      {/* Availability controls */}
+                      <div className="flex gap-2 mt-1 border-t border-slate-100 pt-3">
                         <button
+                          type="button"
                           onClick={() => handleToggleAccepting(true)}
-                          className={`flex-1 py-1.5 rounded border text-[11px] font-semibold transition ${
+                          className={`flex-1 py-1.5 rounded border text-[11px] font-semibold transition cursor-pointer ${
                             loggedInDoctor.accepting
                               ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
                               : 'bg-white text-slate-650 border-slate-200 hover:bg-slate-50'
@@ -1108,8 +1467,9 @@ export default function App() {
                           Accept
                         </button>
                         <button
+                          type="button"
                           onClick={() => handleToggleAccepting(false)}
-                          className={`flex-1 py-1.5 rounded border text-[11px] font-semibold transition ${
+                          className={`flex-1 py-1.5 rounded border text-[11px] font-semibold transition cursor-pointer ${
                             !loggedInDoctor.accepting
                               ? 'bg-rose-50 text-rose-800 border-rose-300'
                               : 'bg-white text-slate-650 border-slate-200 hover:bg-slate-50'
@@ -1119,6 +1479,52 @@ export default function App() {
                         </button>
                       </div>
                     </div>
+                  </div>
+                )}
+              </div>
+
+              {/* SESSION HISTORY CARD — PUBLICLY ACCESSIBLE TO PATIENTS AT ANY TIME */}
+              <div className="bg-white border border-slate-200 rounded-xl p-5 flex flex-col gap-4 shadow-sm mt-4 animate-fadeIn">
+                <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 border-b border-slate-100 pb-2.5">
+                  <div className="w-5 h-5 rounded-md bg-indigo-50 border border-indigo-100 flex items-center justify-center shrink-0">
+                    <FileText className="w-3 h-3 text-indigo-600" />
+                  </div>
+                  Session History (Stored Reports)
+                </h3>
+                
+                {sessionHistory.length === 0 ? (
+                  <div className="text-center py-6 border border-dashed border-slate-200 rounded-lg text-xs text-slate-400 italic">
+                    No stored session reports yet.
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-2.5 max-h-[300px] overflow-y-auto pr-1">
+                    {sessionHistory.map((session) => {
+                      const dateObj = new Date(session.startTime);
+                      const dateFormatted = dateObj.toLocaleDateString();
+                      const timeFormatted = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                      return (
+                        <div 
+                          key={session.id}
+                          className="bg-slate-50 hover:bg-slate-100/80 border border-slate-200/85 rounded-lg p-3.5 flex justify-between items-center transition gap-3 shadow-[0_1px_2px_rgba(0,0,0,0.02)]"
+                        >
+                          <div className="min-w-0">
+                            <h4 className="text-xs font-bold text-slate-800 truncate">
+                              {session.sessionName}
+                            </h4>
+                            <p className="text-[10px] text-slate-400 font-semibold mt-1">
+                              Doctor: <span className="font-extrabold text-slate-550">{session.doctorName}</span> • {dateFormatted}, {timeFormatted}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => downloadSessionReport(session)}
+                            className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-150 rounded text-[10.5px] font-bold transition shadow-sm cursor-pointer"
+                          >
+                            <Download className="w-3 h-3 text-indigo-600" />
+                            Download DOC
+                          </button>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -1320,11 +1726,10 @@ export default function App() {
                                 <span className="text-xs font-semibold text-slate-800 truncate">{patient.patient_name}</span>
                                 <span className="text-[10px] text-slate-400 mt-0.5">QC-101-{patient.token_number}</span>
                               </div>
-                              <div className="flex items-center gap-1 shrink-0 relative">
+                              <div className="flex items-center gap-1 shrink-0 relative group">
                                 <button
                                   type="button"
-                                  onClick={() => setActiveDropdownId(activeDropdownId === patient.id ? null : patient.id)}
-                                  className="p-1 hover:bg-slate-200 text-slate-400 hover:text-slate-650 rounded transition"
+                                  className="p-1 hover:bg-slate-200 text-slate-400 hover:text-slate-650 rounded transition cursor-pointer"
                                   title="More Options"
                                 >
                                   <MoreVertical className="w-3.5 h-3.5" />
@@ -1332,34 +1737,25 @@ export default function App() {
                                 <button
                                   type="button"
                                   onClick={() => handleRemovePatient(patient.id, patient.patient_name)}
-                                  className="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded transition shrink-0"
+                                  className="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded transition shrink-0 cursor-pointer"
                                   title="Cancel Patient"
                                 >
                                   <X className="w-3.5 h-3.5" />
                                 </button>
 
-                                {activeDropdownId === patient.id && (
-                                  <>
-                                    <div 
-                                      className="fixed inset-0 z-30" 
-                                      onClick={() => setActiveDropdownId(null)}
-                                    />
-                                    <div className="absolute right-0 top-7 bg-white border border-slate-200 rounded shadow-md z-45 py-1 min-w-[70px]">
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setEditingPatientId(patient.id);
-                                          setEditPatientName(patient.patient_name);
-                                          setEditPatientToken(String(patient.token_number));
-                                          setActiveDropdownId(null);
-                                        }}
-                                        className="w-full text-left px-3 py-1.5 hover:bg-slate-50 text-xs font-medium text-slate-700"
-                                      >
-                                        Edit
-                                      </button>
-                                    </div>
-                                  </>
-                                )}
+                                <div className="absolute right-0 top-6 hidden group-hover:block bg-white border border-slate-200 rounded shadow-md z-30 py-1 min-w-[70px]">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setEditingPatientId(patient.id);
+                                      setEditPatientName(patient.patient_name);
+                                      setEditPatientToken(String(patient.token_number));
+                                    }}
+                                    className="w-full text-left px-3 py-1.5 hover:bg-slate-50 text-xs font-medium text-slate-700 cursor-pointer"
+                                  >
+                                    Edit
+                                  </button>
+                                </div>
                               </div>
                             </div>
                           )}
