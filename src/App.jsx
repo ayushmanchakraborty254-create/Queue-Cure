@@ -68,9 +68,11 @@ export default function App() {
   const [loggedInDoctor, setLoggedInDoctor] = useState(null);
   const [docPhone, setDocPhone] = useState('');
   const [docName, setDocName] = useState('');
-  const [docDept, setDocDept] = useState('Cardiology');
-  const [docChamber, setDocChamber] = useState('101');
+  const [docDept, setDocDept] = useState('');
+  const [docChamber, setDocChamber] = useState('');
   const [activeTab, setActiveTab] = useState('reception'); // 'reception' | 'doctor'
+  const [docSuggestions, setDocSuggestions] = useState([]);
+  const [detectedDoctor, setDetectedDoctor] = useState(null);
   const [doctorsList, setDoctorsList] = useState(() => {
     const savedDocs = localStorage.getItem('qc_doctors');
     return savedDocs ? JSON.parse(savedDocs) : MOCK_DOCTORS.map(d => ({ ...d, accepting: true }));
@@ -642,75 +644,53 @@ export default function App() {
                   <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
                 </div>
 
-                {/* Doctor Listings */}
+                {/* Doctor Listings — only portal-registered doctors */}
                 <div>
-                  {doctorSearchQuery.trim() !== '' ? (
-                    <div className="flex flex-col gap-1.5">
-                      {doctorsList.filter(doc =>
-                        doc.name.toLowerCase().includes(doctorSearchQuery.toLowerCase()) ||
-                        doc.department.toLowerCase().includes(doctorSearchQuery.toLowerCase())
-                      ).length === 0 ? (
-                        <span className="text-xs text-slate-400 italic">No doctors found</span>
-                      ) : (
-                        <div className="flex flex-col gap-1.5">
-                          {doctorsList.filter(doc =>
-                            doc.name.toLowerCase().includes(doctorSearchQuery.toLowerCase()) ||
-                            doc.department.toLowerCase().includes(doctorSearchQuery.toLowerCase())
-                          ).map(doc => (
-                            <button
-                              key={doc.id}
-                              type="button"
-                              onClick={() => setSelectedDoctor(selectedDoctor?.id === doc.id ? null : doc)}
-                              className={`flex items-center justify-between p-2 rounded border text-left text-xs transition ${
-                                selectedDoctor?.id === doc.id
-                                  ? 'bg-slate-900 text-white border-slate-900'
-                                  : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
-                              }`}
-                            >
-                              <div>
-                                <div className="font-semibold flex items-center gap-1.5">
-                                  {doc.accepting ? (
-                                    <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block shrink-0" title="Accepting patients"></span>
-                                  ) : (
-                                    <span className="w-2 h-2 rounded-full bg-rose-500 inline-block shrink-0" title="Not accepting patients"></span>
-                                  )}
-                                  {doc.name}
-                                </div>
-                                <div className={`text-[10px] ${selectedDoctor?.id === doc.id ? 'text-slate-300' : 'text-slate-500'}`}>{doc.department}</div>
-                              </div>
-                            </button>
-                          ))}
+                  {(() => {
+                    const registeredDocs = doctorsList.filter(doc => doc.phone);
+                    const searchedDocs = doctorSearchQuery.trim() !== ''
+                      ? registeredDocs.filter(doc =>
+                          doc.name.toLowerCase().includes(doctorSearchQuery.toLowerCase()) ||
+                          (doc.department || '').toLowerCase().includes(doctorSearchQuery.toLowerCase())
+                        )
+                      : registeredDocs;
+
+                    if (registeredDocs.length === 0) {
+                      return (
+                        <div className="text-center py-4 text-[11px] text-slate-400 italic border border-dashed border-slate-200 rounded-md">
+                          No registered doctors yet.<br />Register via the Dr. Portal below.
                         </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="flex flex-col gap-1.5">
-                      {doctorsList.slice(0, 3).map(doc => (
-                        <button
-                          key={doc.id}
-                          type="button"
-                          onClick={() => setSelectedDoctor(selectedDoctor?.id === doc.id ? null : doc)}
-                          className={`flex items-center justify-between p-2 rounded border text-left text-xs transition ${
-                            selectedDoctor?.id === doc.id
-                              ? 'bg-slate-900 text-white border-slate-900'
-                              : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
-                          }`}
-                        >
-                          <div>
-                            <div className="font-semibold flex items-center gap-1.5">
-                              {doc.accepting ? (
-                                <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block shrink-0" title="Accepting patients"></span>
-                              ) : (
-                                <span className="w-2 h-2 rounded-full bg-rose-500 inline-block shrink-0" title="Not accepting patients"></span>
-                              )}
-                              {doc.name}
+                      );
+                    }
+
+                    if (searchedDocs.length === 0) {
+                      return <span className="text-xs text-slate-400 italic">No doctors found</span>;
+                    }
+
+                    return (
+                      <div className="flex flex-col gap-1.5">
+                        {searchedDocs.map(doc => (
+                          <button
+                            key={doc.id}
+                            type="button"
+                            onClick={() => setSelectedDoctor(selectedDoctor?.id === doc.id ? null : doc)}
+                            className={`flex items-center justify-between p-2 rounded border text-left text-xs transition ${
+                              selectedDoctor?.id === doc.id
+                                ? 'bg-slate-900 text-white border-slate-900'
+                                : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
+                            }`}
+                          >
+                            <div>
+                              <div className="font-semibold">{doc.name}</div>
+                              <div className={`text-[10px] ${selectedDoctor?.id === doc.id ? 'text-slate-300' : 'text-slate-500'}`}>
+                                {doc.department}{doc.chamber ? ` • Room ${doc.chamber}` : ''}
+                              </div>
                             </div>
-                            <div className={`text-[10px] ${selectedDoctor?.id === doc.id ? 'text-slate-300' : 'text-slate-500'}`}>{doc.department}</div>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  )}
+                          </button>
+                        ))}
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
               <div className="relative bg-white border border-slate-200/80 rounded-lg p-5 flex flex-col gap-3.5 overflow-hidden">
@@ -809,58 +789,191 @@ export default function App() {
               <div className="bg-white border border-slate-200 rounded-lg p-5 flex flex-col gap-4 shadow-sm">
                 {!isDoctorLoggedIn ? (
                   <div>
-                    <h3 className="text-xs font-semibold text-slate-700 flex items-center gap-1.5 border-b border-slate-100 pb-2 mb-3">
-                      <Users className="w-3.5 h-3.5 text-slate-500" />
-                      Doctor Portal (Login / Register)
+                    <h3 className="text-[11px] font-semibold text-slate-500 flex items-center gap-1.5 border-b border-slate-100 pb-2 mb-3">
+                      <Users className="w-3 h-3 text-slate-400" />
+                      Dr. Login / Register
                     </h3>
-                    <form onSubmit={handleDoctorSubmit} className="flex flex-col gap-3">
-                      <div className="flex flex-col gap-2">
-                        <input
-                          type="tel"
-                          required
-                          placeholder="Phone Number (e.g. 9876543210)"
-                          value={docPhone}
-                          onChange={(e) => setDocPhone(e.target.value)}
-                          className="w-full px-3 py-2 rounded border border-slate-300 focus:outline-none focus:border-slate-400 text-xs text-slate-800"
-                        />
+                    <form onSubmit={handleDoctorSubmit} className="flex flex-col gap-2">
+
+                      {/* Full Name with live suggestion dropdown */}
+                      <div className="relative">
                         <input
                           type="text"
                           required
                           placeholder="Full Name (e.g. Dr. Arthur Dent)"
                           value={docName}
-                          onChange={(e) => setDocName(e.target.value)}
-                          className="w-full px-3 py-2 rounded border border-slate-300 focus:outline-none focus:border-slate-400 text-xs text-slate-800"
+                          autoComplete="off"
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setDocName(val);
+                            setDetectedDoctor(null);
+                            if (val.trim().length >= 2) {
+                              const matches = doctorsList.filter(d =>
+                                d.phone &&
+                                d.name.toLowerCase().includes(val.toLowerCase())
+                              );
+                              setDocSuggestions(matches);
+                            } else {
+                              setDocSuggestions([]);
+                            }
+                          }}
+                          onBlur={() => setTimeout(() => setDocSuggestions([]), 150)}
+                          className={`w-full px-3 py-2 rounded border text-xs text-slate-800 focus:outline-none transition ${
+                            detectedDoctor ? 'border-emerald-400 bg-emerald-50/40' : 'border-slate-300 focus:border-slate-400'
+                          }`}
                         />
-                        <div className="grid grid-cols-2 gap-2">
-                          <select
-                            value={docDept}
-                            onChange={(e) => setDocDept(e.target.value)}
-                            className="w-full px-2 py-2 rounded border border-slate-300 bg-white focus:outline-none focus:border-slate-400 text-xs text-slate-800"
-                          >
-                            <option value="Cardiology">Cardiology</option>
-                            <option value="Pediatrics">Pediatrics</option>
-                            <option value="Neurology">Neurology</option>
-                            <option value="Orthopedics">Orthopedics</option>
-                            <option value="Dermatology">Dermatology</option>
-                            <option value="Psychiatry">Psychiatry</option>
-                            <option value="General Medicine">General Medicine</option>
-                            <option value="Oncology">Oncology</option>
-                          </select>
-                          <input
-                            type="text"
-                            placeholder="Chamber Room (e.g. 101)"
-                            value={docChamber}
-                            onChange={(e) => setDocChamber(e.target.value)}
-                            className="w-full px-3 py-2 rounded border border-slate-300 focus:outline-none focus:border-slate-400 text-xs text-slate-800"
-                          />
-                        </div>
-                        <button
-                          type="submit"
-                          className="w-full py-2 bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs rounded transition mt-1"
-                        >
-                          Login / Register
-                        </button>
+                        {docSuggestions.length > 0 && (
+                          <div className="absolute z-30 left-0 right-0 top-full mt-0.5 bg-white border border-slate-200 rounded-md shadow-md overflow-hidden">
+                            {docSuggestions.map(s => (
+                              <button
+                                key={s.id}
+                                type="button"
+                                onMouseDown={() => {
+                                  setDocName(s.name);
+                                  setDocPhone(s.phone || '');
+                                  setDocDept(s.department || '');
+                                  setDocChamber(s.chamber || '');
+                                  setDetectedDoctor(s);
+                                  setDocSuggestions([]);
+                                }}
+                                className="w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center gap-2 border-b border-slate-100 last:border-0"
+                              >
+                                <div>
+                                  <div className="text-xs font-semibold text-slate-800">{s.name}</div>
+                                  <div className="text-[10px] text-slate-500">{s.department}{s.chamber ? ` • Room ${s.chamber}` : ''}</div>
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
+
+                      {/* Phone with live suggestion */}
+                      <div className="relative">
+                        <input
+                          type="tel"
+                          required
+                          placeholder="Phone Number (e.g. 9876543210)"
+                          value={docPhone}
+                          autoComplete="off"
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setDocPhone(val);
+                            setDetectedDoctor(null);
+                            if (val.trim().length >= 4) {
+                              const matches = doctorsList.filter(d =>
+                                d.phone &&
+                                d.phone.includes(val)
+                              );
+                              setDocSuggestions(matches);
+                            } else {
+                              setDocSuggestions([]);
+                            }
+                          }}
+                          onBlur={() => setTimeout(() => setDocSuggestions([]), 150)}
+                          className={`w-full px-3 py-2 rounded border text-xs text-slate-800 focus:outline-none transition ${
+                            detectedDoctor ? 'border-emerald-400 bg-emerald-50/40' : 'border-slate-300 focus:border-slate-400'
+                          }`}
+                        />
+                        {docSuggestions.length > 0 && (
+                          <div className="absolute z-30 left-0 right-0 top-full mt-0.5 bg-white border border-slate-200 rounded-md shadow-md overflow-hidden">
+                            {docSuggestions.map(s => (
+                              <button
+                                key={s.id}
+                                type="button"
+                                onMouseDown={() => {
+                                  setDocName(s.name);
+                                  setDocPhone(s.phone || '');
+                                  setDocDept(s.department || '');
+                                  setDocChamber(s.chamber || '');
+                                  setDetectedDoctor(s);
+                                  setDocSuggestions([]);
+                                }}
+                                className="w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center gap-2 border-b border-slate-100 last:border-0"
+                              >
+                                <div>
+                                  <div className="text-xs font-semibold text-slate-800">{s.name}</div>
+                                  <div className="text-[10px] text-slate-500">{s.phone} • {s.department}{s.chamber ? ` • Room ${s.chamber}` : ''}</div>
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Department & Room — hidden when logging in as existing doctor */}
+                      {!detectedDoctor && (
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="relative">
+                            <input
+                              list="dept-options"
+                              required
+                              placeholder="Department"
+                              value={docDept}
+                              onChange={(e) => setDocDept(e.target.value)}
+                              className="w-full px-3 py-2 rounded border border-slate-300 focus:outline-none focus:border-slate-400 text-xs text-slate-800 bg-white"
+                            />
+                            <datalist id="dept-options">
+                              <option value="Cardiology" />
+                              <option value="Pediatrics" />
+                              <option value="Neurology" />
+                              <option value="Orthopedics" />
+                              <option value="Dermatology" />
+                              <option value="Psychiatry" />
+                              <option value="General Medicine" />
+                              <option value="Oncology" />
+                              <option value="ENT" />
+                              <option value="Gynecology" />
+                              <option value="Radiology" />
+                              <option value="Ophthalmology" />
+                            </datalist>
+                          </div>
+                          <div className="relative">
+                            <input
+                              list="room-options"
+                              required
+                              placeholder="Room No."
+                              value={docChamber}
+                              onChange={(e) => setDocChamber(e.target.value)}
+                              className="w-full px-3 py-2 rounded border border-slate-300 focus:outline-none focus:border-slate-400 text-xs text-slate-800 bg-white"
+                            />
+                            <datalist id="room-options">
+                              {Array.from({ length: 80 }, (_, i) => (
+                                <option key={101 + i} value={String(101 + i)} />
+                              ))}
+                            </datalist>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Detected doctor badge */}
+                      {detectedDoctor && (
+                        <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded px-3 py-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>
+                          <span className="text-[11px] text-emerald-800 font-medium">
+                            Recognised: {detectedDoctor.name} — {detectedDoctor.department}{detectedDoctor.chamber ? `, Room ${detectedDoctor.chamber}` : ''}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setDetectedDoctor(null);
+                              setDocName(''); setDocPhone(''); setDocDept(''); setDocChamber('');
+                            }}
+                            className="ml-auto text-emerald-500 hover:text-emerald-700 text-xs font-bold"
+                          >×</button>
+                        </div>
+                      )}
+
+                      <button
+                        type="submit"
+                        className={`w-full py-2 text-white font-semibold text-xs rounded transition ${
+                          detectedDoctor
+                            ? 'bg-emerald-600 hover:bg-emerald-700'
+                            : 'bg-slate-900 hover:bg-slate-800'
+                        }`}
+                      >
+                        {detectedDoctor ? 'Login' : 'Register'}
+                      </button>
                     </form>
                   </div>
                 ) : (
