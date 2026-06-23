@@ -947,7 +947,7 @@ export default function App() {
                               className="w-full px-3 py-2 rounded border border-slate-300 focus:outline-none focus:border-slate-400 text-xs text-slate-800 bg-white"
                             />
                             <datalist id="room-options">
-                              {Array.from({ length: 80 }, (_, i) => (
+                              {Array.from({ length: 50 }, (_, i) => (
                                 <option key={101 + i} value={String(101 + i)} />
                               ))}
                             </datalist>
@@ -1088,17 +1088,18 @@ export default function App() {
                   </h2>
                 </div>
                 <div>
-                  <select
+                  <input
+                    list="waiting-room-options"
                     value={roomNumber}
                     onChange={(e) => setRoomNumber(e.target.value)}
-                    className="text-xs font-semibold bg-slate-100 border border-slate-200 text-slate-700 rounded px-2.5 py-1 focus:outline-none focus:ring-1 focus:ring-slate-400 cursor-pointer"
-                  >
-                    <option value="Room 101">Room 101</option>
-                    <option value="Room 102">Room 102</option>
-                    <option value="Room 103">Room 103</option>
-                    <option value="Room 104">Room 104</option>
-                    <option value="Room 105">Room 105</option>
-                  </select>
+                    placeholder="Type or pick room..."
+                    className="text-xs font-semibold bg-slate-100 border border-slate-200 text-slate-700 rounded px-2.5 py-1 w-28 focus:outline-none focus:ring-1 focus:ring-slate-400"
+                  />
+                  <datalist id="waiting-room-options">
+                    {Array.from({ length: 50 }, (_, i) => (
+                      <option key={101 + i} value={`Room ${101 + i}`} />
+                    ))}
+                  </datalist>
                 </div>
               </div>
 
@@ -1203,6 +1204,34 @@ export default function App() {
                   <span className="font-bold text-slate-800">
                     {settings.current_serving_token > 0 ? `QC-101-${settings.current_serving_token}` : '—'}
                   </span>
+                </div>
+
+                {/* Next 3 Patients List */}
+                <div className="flex flex-col gap-2 border-t border-slate-100 pt-3">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Next 3 Patients</span>
+                  {upcomingQueue.slice(0, 3).length === 0 ? (
+                    <div className="text-center py-2.5 text-xs text-slate-400 italic bg-slate-50/50 border border-dashed border-slate-200 rounded-md">
+                      No patients waiting in queue.
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-1.5">
+                      {upcomingQueue.slice(0, 3).map((patient) => (
+                        <div key={patient.id} className="flex justify-between items-center bg-slate-50 hover:bg-slate-100/80 border border-slate-200 rounded px-3 py-1.5 transition">
+                          <div className="flex flex-col min-w-0">
+                            <span className="text-xs font-semibold text-slate-800 truncate">{patient.patient_name}</span>
+                            <span className="text-[10px] text-slate-400 mt-0.5">QC-101-{patient.token_number}</span>
+                          </div>
+                          <button
+                            onClick={() => handleRemovePatient(patient.id, patient.patient_name)}
+                            className="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded transition shrink-0"
+                            title="Cancel Patient"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex gap-2">
