@@ -14,23 +14,37 @@ import {
   ShieldAlert, 
   ListOrdered,
   Users,
-  X
+  X,
+  Search,
+  ChevronUp,
+  ChevronDown
 } from 'lucide-react';
 
 // Pre-seeded mock data for Demo Mode
 const MOCK_INITIAL_QUEUE = [
-  { id: '1', patient_name: 'David Miller', token_number: 1, status: 'in-consultation', created_at: new Date(Date.now() - 3600000).toISOString() },
-  { id: '2', patient_name: 'Emily Watson', token_number: 2, status: 'waiting', created_at: new Date(Date.now() - 2400000).toISOString() },
-  { id: '3', patient_name: 'Robert Downey', token_number: 3, status: 'waiting', created_at: new Date(Date.now() - 1200000).toISOString() },
-  { id: '4', patient_name: 'Sarah Connor', token_number: 4, status: 'waiting', created_at: new Date(Date.now() - 600000).toISOString() },
-  { id: '5', patient_name: 'Bruce Wayne', token_number: 5, status: 'waiting', created_at: new Date(Date.now() - 300000).toISOString() },
-  { id: '6', patient_name: 'Clark Kent', token_number: 6, status: 'waiting', created_at: new Date(Date.now() - 100000).toISOString() }
+  { id: '1', patient_name: 'David Miller', token_number: 1, doctor_name: 'Dr. Sarah Jenkins', status: 'in-consultation', created_at: new Date(Date.now() - 3600000).toISOString() },
+  { id: '2', patient_name: 'Emily Watson', token_number: 2, doctor_name: 'Dr. James Carter', status: 'waiting', created_at: new Date(Date.now() - 2400000).toISOString() },
+  { id: '3', patient_name: 'Robert Downey', token_number: 3, doctor_name: 'Dr. Elena Rostova', status: 'waiting', created_at: new Date(Date.now() - 1200000).toISOString() },
+  { id: '4', patient_name: 'Sarah Connor', token_number: 4, doctor_name: 'Dr. Marcus Vance', status: 'waiting', created_at: new Date(Date.now() - 600000).toISOString() },
+  { id: '5', patient_name: 'Bruce Wayne', token_number: 5, doctor_name: 'Dr. Robert Chen', status: 'waiting', created_at: new Date(Date.now() - 300000).toISOString() },
+  { id: '6', patient_name: 'Clark Kent', token_number: 6, doctor_name: 'Dr. Lisa Kudrow', status: 'waiting', created_at: new Date(Date.now() - 100000).toISOString() }
 ];
 
 const MOCK_INITIAL_SETTINGS = {
   current_serving_token: 1,
   avg_consultation_time: 15
 };
+
+const MOCK_DOCTORS = [
+  { id: 1, name: 'Dr. Sarah Jenkins', department: 'Cardiology', isBusy: true },
+  { id: 2, name: 'Dr. James Carter', department: 'Pediatrics', isBusy: true },
+  { id: 3, name: 'Dr. Elena Rostova', department: 'Neurology', isBusy: true },
+  { id: 4, name: 'Dr. Marcus Vance', department: 'Orthopedics', isBusy: true },
+  { id: 5, name: 'Dr. Robert Chen', department: 'Dermatology', isBusy: false },
+  { id: 6, name: 'Dr. Lisa Kudrow', department: 'Psychiatry', isBusy: false },
+  { id: 7, name: 'Dr. Alan Grant', department: 'General Medicine', isBusy: false },
+  { id: 8, name: 'Dr. Amanda Reyes', department: 'Oncology', isBusy: false }
+];
 
 export default function App() {
   // Application State
@@ -44,6 +58,11 @@ export default function App() {
   const [avgConsultTime, setAvgConsultTime] = useState(15);
   const [actionLoading, setActionLoading] = useState(false);
   const [notification, setNotification] = useState(null);
+  
+  // Custom added states
+  const [doctorSearchQuery, setDoctorSearchQuery] = useState('');
+  const [selectedDoctor, setSelectedDoctor] = useState(null);
+  const [roomNumber, setRoomNumber] = useState('Room 101');
 
   // Notifications helper
   const showToast = (message, type = 'success') => {
@@ -165,14 +184,15 @@ export default function App() {
     setActionLoading(true);
     try {
       const name = newPatientName.trim();
+      const assignedDoctorName = selectedDoctor ? selectedDoctor.name : 'General Physician';
       
       if (isSupabaseConfigured) {
         const { error: insertError } = await supabase
           .from('queue')
-          .insert([{ patient_name: name, status: 'waiting' }]);
+          .insert([{ patient_name: name, status: 'waiting', doctor_name: assignedDoctorName }]);
         
         if (insertError) throw insertError;
-        showToast(`Token generated for ${name}!`, 'success');
+        showToast(`Token generated for ${name} (assigned to ${assignedDoctorName})!`, 'success');
       } else {
         const nextTokenNum = queue.length > 0 
           ? Math.max(...queue.map(p => p.token_number)) + 1 
@@ -182,6 +202,7 @@ export default function App() {
           id: crypto.randomUUID(),
           patient_name: name,
           token_number: nextTokenNum,
+          doctor_name: assignedDoctorName,
           status: 'waiting',
           created_at: new Date().toISOString()
         };
@@ -189,9 +210,11 @@ export default function App() {
         const updatedQueue = [...queue, newPatient];
         setQueue(updatedQueue);
         localStorage.setItem('qc_queue', JSON.stringify(updatedQueue));
-        showToast(`Token QC-101-${nextTokenNum} generated for ${name}!`, 'success');
+        showToast(`Token QC-101-${nextTokenNum} generated for ${name} (assigned to ${assignedDoctorName})!`, 'success');
       }
       setNewPatientName('');
+      setSelectedDoctor(null);
+      setDoctorSearchQuery('');
     } catch (err) {
       console.error(err);
       showToast(err.message || 'Failed to add patient', 'error');
@@ -397,32 +420,6 @@ export default function App() {
             <p className="text-[10px] text-slate-400 font-semibold tracking-wider uppercase">Clinic Queue Director</p>
           </div>
         </div>
-
-        {/* Connection status and actions */}
-        <div className="flex items-center gap-3">
-          {isSupabaseConfigured ? (
-            <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-md px-3 py-1 text-xs text-emerald-700 font-medium">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-              Supabase Live
-            </div>
-          ) : (
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-2 bg-slate-100 border border-slate-200 rounded-md px-3 py-1 text-xs text-slate-600 font-medium">
-                <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
-                Demo Mode
-              </div>
-            </div>
-          )}
-
-          <button 
-            onClick={handleReset}
-            disabled={actionLoading}
-            className="flex items-center gap-1.5 px-3 py-1 rounded-md text-xs bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 transition"
-          >
-            <RotateCcw className="w-3 h-3" />
-            Reset State
-          </button>
-        </div>
       </header>
 
       {/* Main Grid Layout */}
@@ -463,32 +460,174 @@ export default function App() {
                 </span>
               </div>
 
+              {/* Assign Doctor Card */}
+              <div className="bg-white border border-slate-200/80 rounded-lg p-5 flex flex-col gap-3.5">
+                <h3 className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                  <Users className="w-3.5 h-3.5 text-slate-500" />
+                  Assign Doctor
+                </h3>
+                
+                {/* Search Bar */}
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={doctorSearchQuery}
+                    onChange={(e) => setDoctorSearchQuery(e.target.value)}
+                    placeholder="Search doctor by name or department..."
+                    className="w-full pl-8 pr-3 py-2 rounded border border-slate-300 focus:outline-none focus:border-slate-400 text-xs text-slate-800 placeholder-slate-400"
+                  />
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                </div>
+
+                {/* Doctor Listings */}
+                <div>
+                  {doctorSearchQuery.trim() !== '' ? (
+                    // Search Results
+                    <div className="flex flex-col gap-1.5">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Search Results</span>
+                      {MOCK_DOCTORS.filter(doc => 
+                        doc.name.toLowerCase().includes(doctorSearchQuery.toLowerCase()) || 
+                        doc.department.toLowerCase().includes(doctorSearchQuery.toLowerCase())
+                      ).length === 0 ? (
+                        <span className="text-xs text-slate-400 italic">No doctors found</span>
+                      ) : (
+                        <div className="flex flex-col gap-1.5">
+                          {MOCK_DOCTORS.filter(doc => 
+                            doc.name.toLowerCase().includes(doctorSearchQuery.toLowerCase()) || 
+                            doc.department.toLowerCase().includes(doctorSearchQuery.toLowerCase())
+                          ).map(doc => (
+                            <button
+                              key={doc.id}
+                              type="button"
+                              onClick={() => setSelectedDoctor(selectedDoctor?.id === doc.id ? null : doc)}
+                              className={`flex items-center justify-between p-2 rounded border text-left text-xs transition ${
+                                selectedDoctor?.id === doc.id 
+                                  ? 'bg-slate-900 text-white border-slate-900' 
+                                  : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
+                              }`}
+                            >
+                              <div>
+                                <div className="font-semibold">{doc.name}</div>
+                                <div className={`text-[10px] ${selectedDoctor?.id === doc.id ? 'text-slate-300' : 'text-slate-500'}`}>{doc.department}</div>
+                              </div>
+                              {doc.isBusy && (
+                                <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider ${
+                                  selectedDoctor?.id === doc.id ? 'bg-slate-850 text-slate-200' : 'bg-amber-100 text-amber-800'
+                                }`}>
+                                  Busy
+                                </span>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    // Top 4 Busy Scheduled Doctors
+                    <div className="flex flex-col gap-1.5">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Top Busy Scheduled Doctors</span>
+                      <div className="flex flex-col gap-1.5">
+                        {MOCK_DOCTORS.filter(doc => doc.isBusy).slice(0, 4).map(doc => (
+                          <button
+                            key={doc.id}
+                            type="button"
+                            onClick={() => setSelectedDoctor(selectedDoctor?.id === doc.id ? null : doc)}
+                            className={`flex items-center justify-between p-2 rounded border text-left text-xs transition ${
+                              selectedDoctor?.id === doc.id 
+                                ? 'bg-slate-900 text-white border-slate-900' 
+                                : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
+                            }`}
+                          >
+                            <div>
+                              <div className="font-semibold">{doc.name}</div>
+                              <div className={`text-[10px] ${selectedDoctor?.id === doc.id ? 'text-slate-300' : 'text-slate-500'}`}>{doc.department}</div>
+                            </div>
+                            <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider ${
+                              selectedDoctor?.id === doc.id ? 'bg-slate-850 text-slate-200' : 'bg-amber-100 text-amber-800'
+                            }`}>
+                              Busy
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               {/* Add Patient Card */}
               <div className="bg-white border border-slate-200/80 rounded-lg p-5 flex flex-col gap-3.5">
                 <h3 className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
                   <UserPlus className="w-3.5 h-3.5 text-slate-500" />
                   New Registration
                 </h3>
-                <form onSubmit={handleAddPatient} className="flex gap-2">
-                  <input
-                    type="text"
-                    required
-                    value={newPatientName}
-                    onChange={(e) => setNewPatientName(e.target.value)}
-                    placeholder="Patient Name"
-                    className="flex-1 px-3 py-2 rounded border border-slate-300 focus:outline-none focus:border-slate-400 text-xs text-slate-800 placeholder-slate-400"
-                  />
-                  <button
-                    type="submit"
-                    disabled={actionLoading}
-                    className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-medium text-xs rounded transition flex items-center gap-1 disabled:opacity-50"
-                  >
-                    Generate Token
-                  </button>
+                <form onSubmit={handleAddPatient} className="flex flex-col gap-3">
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      required
+                      value={newPatientName}
+                      onChange={(e) => setNewPatientName(e.target.value)}
+                      placeholder="Patient Name"
+                      className="flex-1 px-3 py-2 rounded border border-slate-300 focus:outline-none focus:border-slate-400 text-xs text-slate-800 placeholder-slate-400"
+                    />
+                    <button
+                      type="submit"
+                      disabled={actionLoading}
+                      className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-medium text-xs rounded transition flex items-center gap-1 disabled:opacity-50"
+                    >
+                      Generate Token
+                    </button>
+                  </div>
+                  {selectedDoctor && (
+                    <div className="text-[11px] text-slate-500 bg-slate-50 border border-slate-200 rounded px-2.5 py-1.5 flex items-center justify-between animate-fadeIn">
+                      <span>Assigned to next patient: <strong className="text-slate-800">{selectedDoctor.name}</strong> ({selectedDoctor.department})</span>
+                      <button type="button" onClick={() => setSelectedDoctor(null)} className="text-slate-400 hover:text-slate-600 font-bold text-xs" title="Clear assignment">×</button>
+                    </div>
+                  )}
                 </form>
               </div>
 
-              {/* Queue Control Card */}
+              {/* Centered Last Called Token */}
+              <div className="flex flex-col items-center justify-center py-2 bg-slate-50/50 border border-slate-200/60 rounded-lg">
+                <span className="text-[10px] font-bold text-slate-450 uppercase tracking-wider">Last Called Token</span>
+                <span className="text-2xl font-extrabold text-slate-900 tracking-tight mt-0.5">
+                  {settings.current_serving_token > 0 ? `QC-101-${settings.current_serving_token}` : '—'}
+                </span>
+              </div>
+
+              {/* Consultation Time Card */}
+              <div className="bg-white border border-slate-200/80 rounded-lg p-5 flex flex-col gap-3">
+                <h3 className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5 text-slate-500" />
+                  Consultation Time
+                </h3>
+                <div className="flex items-center justify-between w-full border border-slate-300 rounded overflow-hidden bg-white shadow-sm mt-1">
+                  <div className="flex-1 px-4 py-2.5 text-xs font-bold text-slate-800 text-center bg-slate-50/50">
+                    {avgConsultTime} minutes
+                  </div>
+                  <div className="flex flex-col border-l border-slate-200">
+                    <button 
+                      type="button"
+                      onClick={() => handleUpdateAvgTime(avgConsultTime + 1)}
+                      className="px-3 py-1 hover:bg-slate-50 border-b border-slate-150 flex items-center justify-center text-slate-500 hover:text-slate-800 transition active:scale-95"
+                      title="Increase time"
+                    >
+                      <ChevronUp className="w-3.5 h-3.5" />
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => handleUpdateAvgTime(Math.max(1, avgConsultTime - 1))}
+                      className="px-3 py-1 hover:bg-slate-50 flex items-center justify-center text-slate-500 hover:text-slate-800 transition active:scale-95"
+                      title="Decrease time"
+                    >
+                      <ChevronDown className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Queue Control Card with Integrated Live Queue Registry */}
               <div className="bg-white border border-slate-200/80 rounded-lg p-5 flex flex-col gap-4">
                 <h3 className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
                   <Play className="w-3.5 h-3.5 text-slate-500" />
@@ -508,87 +647,65 @@ export default function App() {
                   <Play className="w-3.5 h-3.5 fill-current" />
                   Call Next Patient
                 </button>
-              </div>
 
-              {/* Avg Consultation Time Slider */}
-              <div className="bg-white border border-slate-200/80 rounded-lg p-5 flex flex-col gap-3">
-                <h3 className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
-                  <SettingsIcon className="w-3.5 h-3.5 text-slate-500" />
-                  Average Consultation Time
-                </h3>
-                <div className="flex items-center justify-between gap-4">
-                  <input
-                    type="range"
-                    min="1"
-                    max="60"
-                    value={avgConsultTime}
-                    onChange={(e) => handleUpdateAvgTime(e.target.value)}
-                    className="flex-1 accent-slate-800 cursor-pointer h-1.5 bg-slate-250 rounded-lg appearance-none"
-                  />
-                  <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded px-2.5 py-1 text-xs font-semibold text-slate-700">
-                    <span>{avgConsultTime}</span>
-                    <span className="text-[10px] text-slate-400 font-normal">min</span>
+                {/* Integrated Live Queue Registry */}
+                <div className="border-t border-slate-100 pt-4 flex flex-col gap-2.5">
+                  <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <ListOrdered className="w-3 h-3" />
+                    Live Queue Registry ({queue.length})
+                  </h3>
+                  <div className="max-h-[220px] overflow-y-auto pr-1 flex flex-col gap-1.5">
+                    {queue.length === 0 ? (
+                      <div className="text-center py-6 text-xs text-slate-400 italic">No patients listed</div>
+                    ) : (
+                      queue.map((pat) => (
+                        <div 
+                          key={pat.id}
+                          className={`flex items-center justify-between px-3 py-2 rounded text-xs border ${
+                            pat.status === 'in-consultation'
+                              ? 'bg-emerald-50/50 border-emerald-200 text-emerald-800 font-medium'
+                              : pat.status === 'completed'
+                              ? 'bg-white border-slate-100 text-slate-400'
+                              : 'bg-white border-slate-200 text-slate-700'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                              pat.status === 'in-consultation'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : pat.status === 'completed'
+                                ? 'bg-slate-100 text-slate-400'
+                                : 'bg-slate-100 text-slate-700'
+                            }`}>
+                              QC-101-{pat.token_number}
+                            </span>
+                            <span className="truncate max-w-[150px]">{pat.patient_name}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className={`text-[9px] font-semibold uppercase tracking-wider ${
+                              pat.status === 'in-consultation'
+                                ? 'text-emerald-600'
+                                : pat.status === 'completed'
+                                ? 'text-slate-400'
+                                : 'text-slate-500'
+                            }`}>
+                              {pat.status}
+                            </span>
+                            {pat.status === 'waiting' && (
+                              <button
+                                onClick={() => handleRemovePatient(pat.id, pat.patient_name)}
+                                disabled={actionLoading}
+                                className="flex items-center justify-center w-5 h-5 hover:bg-rose-100 active:scale-90 rounded transition disabled:opacity-50 group"
+                                title="Remove patient from queue"
+                              >
+                                <X className="w-3.5 h-3.5 text-slate-600 group-hover:text-rose-700" strokeWidth={2.5} />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))
+                    )}
                   </div>
-                </div>
-              </div>
-
-              {/* Queue List */}
-              <div className="flex-1 flex flex-col gap-2.5">
-                <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                  <ListOrdered className="w-3 h-3" />
-                  Live Queue Registry ({queue.length})
-                </h3>
-                <div className="max-h-[220px] overflow-y-auto pr-1 flex flex-col gap-1.5">
-                  {queue.length === 0 ? (
-                    <div className="text-center py-6 text-xs text-slate-400 italic">No patients listed</div>
-                  ) : (
-                    queue.map((pat) => (
-                      <div 
-                        key={pat.id}
-                        className={`flex items-center justify-between px-3 py-2 rounded text-xs border ${
-                          pat.status === 'in-consultation'
-                            ? 'bg-emerald-50/50 border-emerald-200 text-emerald-800 font-medium'
-                            : pat.status === 'completed'
-                            ? 'bg-white border-slate-100 text-slate-400'
-                            : 'bg-white border-slate-200 text-slate-700'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2">
-                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                            pat.status === 'in-consultation'
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : pat.status === 'completed'
-                              ? 'bg-slate-100 text-slate-400'
-                              : 'bg-slate-100 text-slate-700'
-                          }`}>
-                            QC-101-{pat.token_number}
-                          </span>
-                          <span className="truncate max-w-[150px]">{pat.patient_name}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className={`text-[9px] font-semibold uppercase tracking-wider ${
-                            pat.status === 'in-consultation'
-                              ? 'text-emerald-600'
-                              : pat.status === 'completed'
-                              ? 'text-slate-400'
-                              : 'text-slate-500'
-                          }`}>
-                            {pat.status}
-                          </span>
-                          {pat.status === 'waiting' && (
-                            <button
-                              onClick={() => handleRemovePatient(pat.id, pat.patient_name)}
-                              disabled={actionLoading}
-                              className="flex items-center justify-center w-5 h-5 hover:bg-rose-100 active:scale-90 rounded transition disabled:opacity-50 group"
-                              title="Remove patient from queue"
-                            >
-                              <X className="w-3.5 h-3.5 text-slate-600 group-hover:text-rose-700" strokeWidth={2.5} />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    ))
-                  )}
                 </div>
               </div>
             </section>
@@ -603,22 +720,37 @@ export default function App() {
                   </h2>
                   <p className="text-[11px] text-slate-400">Public scoreboard synced for waiting patients.</p>
                 </div>
-                <span className="text-[9px] font-bold tracking-wider text-slate-400 bg-slate-100 px-2 py-0.5 rounded uppercase">
-                  Waiting Room
-                </span>
+                <div>
+                  <select
+                    value={roomNumber}
+                    onChange={(e) => setRoomNumber(e.target.value)}
+                    className="text-xs font-semibold bg-slate-100 border border-slate-200 text-slate-700 rounded px-2.5 py-1 focus:outline-none focus:ring-1 focus:ring-slate-400 cursor-pointer"
+                  >
+                    <option value="Room 101">Room 101</option>
+                    <option value="Room 102">Room 102</option>
+                    <option value="Room 103">Room 103</option>
+                    <option value="Room 104">Room 104</option>
+                    <option value="Room 105">Room 105</option>
+                  </select>
+                </div>
               </div>
 
               {/* Big Board Now Serving */}
               <div className="bg-white border border-slate-200 rounded-xl p-8 flex flex-col items-center justify-center text-center shadow-sm">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
-                  Now Serving
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-450 mb-1">
+                  {roomNumber} - Now Serving
                 </span>
                 <div className="text-6xl font-extrabold text-slate-950 my-1">
                   {settings.current_serving_token > 0 ? `QC-101-${settings.current_serving_token}` : '—'}
                 </div>
-                <div className="mt-2 text-xs font-medium text-slate-600">
+                <div className="mt-2 text-xs font-semibold text-slate-700">
                   {servingPatient ? servingPatient.patient_name : 'No active consultations'}
                 </div>
+                {servingPatient && servingPatient.doctor_name && (
+                  <div className="mt-3.5 text-[10px] text-slate-500 font-medium bg-slate-50 border border-slate-150 rounded-full px-3 py-1 animate-fadeIn">
+                    Consulting Doctor: <strong className="text-slate-700 font-semibold">{servingPatient.doctor_name}</strong>
+                  </div>
+                )}
               </div>
 
               {/* Simple Stats Grid */}
