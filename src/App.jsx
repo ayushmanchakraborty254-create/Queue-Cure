@@ -14,7 +14,8 @@ import {
   X,
   Search,
   ChevronUp,
-  ChevronDown
+  ChevronDown,
+  MoreVertical
 } from 'lucide-react';
 
 // Pre-seeded mock data for Demo Mode
@@ -62,6 +63,10 @@ export default function App() {
   const [roomNumber, setRoomNumber] = useState('Room 101');
   const [patientSearchQuery, setPatientSearchQuery] = useState('');
   const [newPatientPhone, setNewPatientPhone] = useState('');
+  const [activeDropdownId, setActiveDropdownId] = useState(null);
+  const [editingPatientId, setEditingPatientId] = useState(null);
+  const [editPatientName, setEditPatientName] = useState('');
+  const [editPatientToken, setEditPatientToken] = useState('');
 
   // Doctor Dashboard State
   const [isDoctorLoggedIn, setIsDoctorLoggedIn] = useState(false);
@@ -541,6 +546,47 @@ export default function App() {
     } catch (err) {
       console.error(err);
       showToast(err.message || 'Failed to remove patient', 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Action: Update Patient details
+  const handleUpdatePatient = async (id, updatedName, updatedTokenStr) => {
+    const tokenNum = parseInt(updatedTokenStr, 10);
+    if (isNaN(tokenNum) || tokenNum <= 0) {
+      showToast('Token number must be a positive integer.', 'error');
+      return;
+    }
+
+    // Check duplicate token number (excluding the current patient being edited)
+    const duplicate = queue.find(p => p.id !== id && p.token_number === tokenNum);
+    if (duplicate) {
+      showToast(`Token number ${tokenNum} is already assigned to ${duplicate.patient_name}.`, 'error');
+      return;
+    }
+
+    setActionLoading(true);
+    try {
+      if (isSupabaseConfigured) {
+        const { error: updateError } = await supabase
+          .from('queue')
+          .update({ patient_name: updatedName.trim(), token_number: tokenNum })
+          .eq('id', id);
+
+        if (updateError) throw updateError;
+        showToast('Patient details updated successfully.', 'success');
+      } else {
+        const updatedQueue = queue.map(p =>
+          p.id === id ? { ...p, patient_name: updatedName.trim(), token_number: tokenNum } : p
+        );
+        setQueue(updatedQueue);
+        localStorage.setItem('qc_queue', JSON.stringify(updatedQueue));
+        showToast('Patient details updated successfully.', 'success');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast(err.message || 'Failed to update patient details', 'error');
     } finally {
       setActionLoading(false);
     }
@@ -1216,18 +1262,107 @@ export default function App() {
                   ) : (
                     <div className="flex flex-col gap-1.5">
                       {upcomingQueue.slice(0, 3).map((patient) => (
-                        <div key={patient.id} className="flex justify-between items-center bg-slate-50 hover:bg-slate-100/80 border border-slate-200 rounded px-3 py-1.5 transition">
-                          <div className="flex flex-col min-w-0">
-                            <span className="text-xs font-semibold text-slate-800 truncate">{patient.patient_name}</span>
-                            <span className="text-[10px] text-slate-400 mt-0.5">QC-101-{patient.token_number}</span>
-                          </div>
-                          <button
-                            onClick={() => handleRemovePatient(patient.id, patient.patient_name)}
-                            className="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded transition shrink-0"
-                            title="Cancel Patient"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
+                        <div 
+                          key={patient.id} 
+                          className="bg-slate-50 border border-slate-200 rounded px-3 py-1.5 transition"
+                        >
+                          {editingPatientId === patient.id ? (
+                            <form 
+                              onSubmit={(e) => {
+                                e.preventDefault();
+                                handleUpdatePatient(patient.id, editPatientName, editPatientToken);
+                                setEditingPatientId(null);
+                              }}
+                              className="w-full flex flex-col gap-2 py-0.5"
+                            >
+                              <div className="flex flex-col gap-1">
+                                <label className="text-[9px] font-bold text-slate-400 uppercase">Patient Name</label>
+                                <input
+                                  type="text"
+                                  required
+                                  value={editPatientName}
+                                  onChange={(e) => setEditPatientName(e.target.value)}
+                                  className="w-full px-2 py-1 border border-slate-300 rounded text-xs text-slate-800 focus:outline-none focus:border-slate-400 bg-white"
+                                />
+                              </div>
+                              <div className="flex flex-col gap-1">
+                                <label className="text-[9px] font-bold text-slate-400 uppercase">Token Number</label>
+                                <div className="flex items-center gap-1">
+                                  <span className="text-xs text-slate-450 font-semibold shrink-0">QC-101-</span>
+                                  <input
+                                    type="number"
+                                    required
+                                    value={editPatientToken}
+                                    onChange={(e) => setEditPatientToken(e.target.value)}
+                                    className="w-full px-2 py-1 border border-slate-300 rounded text-xs text-slate-800 focus:outline-none focus:border-slate-400 bg-white"
+                                  />
+                                </div>
+                              </div>
+                              <div className="flex justify-end gap-1.5 mt-1">
+                                <button
+                                  type="button"
+                                  onClick={() => setEditingPatientId(null)}
+                                  className="px-2 py-1 hover:bg-slate-200 text-[10px] font-semibold text-slate-600 rounded transition"
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  type="submit"
+                                  className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white text-[10px] font-semibold rounded transition"
+                                >
+                                  Save
+                                </button>
+                              </div>
+                            </form>
+                          ) : (
+                            <div className="flex justify-between items-center w-full">
+                              <div className="flex flex-col min-w-0">
+                                <span className="text-xs font-semibold text-slate-800 truncate">{patient.patient_name}</span>
+                                <span className="text-[10px] text-slate-400 mt-0.5">QC-101-{patient.token_number}</span>
+                              </div>
+                              <div className="flex items-center gap-1 shrink-0 relative">
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveDropdownId(activeDropdownId === patient.id ? null : patient.id)}
+                                  className="p-1 hover:bg-slate-200 text-slate-400 hover:text-slate-650 rounded transition"
+                                  title="More Options"
+                                >
+                                  <MoreVertical className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemovePatient(patient.id, patient.patient_name)}
+                                  className="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded transition shrink-0"
+                                  title="Cancel Patient"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+
+                                {activeDropdownId === patient.id && (
+                                  <>
+                                    <div 
+                                      className="fixed inset-0 z-30" 
+                                      onClick={() => setActiveDropdownId(null)}
+                                    />
+                                    <div className="absolute right-0 top-7 bg-white border border-slate-200 rounded shadow-md z-45 py-1 min-w-[70px]">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setEditingPatientId(patient.id);
+                                          setEditPatientName(patient.patient_name);
+                                          setEditPatientToken(String(patient.token_number));
+                                          setActiveDropdownId(null);
+                                        }}
+                                        className="w-full text-left px-3 py-1.5 hover:bg-slate-50 text-xs font-medium text-slate-700"
+                                      >
+                                        Edit
+                                      </button>
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
