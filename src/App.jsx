@@ -60,6 +60,25 @@ export default function App() {
   const [doctorSearchQuery, setDoctorSearchQuery] = useState('');
   const [selectedDoctor, setSelectedDoctor] = useState(null);
   const [roomNumber, setRoomNumber] = useState('Room 101');
+  const [patientSearchQuery, setPatientSearchQuery] = useState('');
+  const [newPatientPhone, setNewPatientPhone] = useState('');
+
+  // Doctor Dashboard State
+  const [isDoctorLoggedIn, setIsDoctorLoggedIn] = useState(false);
+  const [loggedInDoctor, setLoggedInDoctor] = useState(null);
+  const [docPhone, setDocPhone] = useState('');
+  const [docName, setDocName] = useState('');
+  const [docDept, setDocDept] = useState('Cardiology');
+  const [docChamber, setDocChamber] = useState('101');
+  const [activeTab, setActiveTab] = useState('reception'); // 'reception' | 'doctor'
+  const [doctorsList, setDoctorsList] = useState(() => {
+    const savedDocs = localStorage.getItem('qc_doctors');
+    return savedDocs ? JSON.parse(savedDocs) : MOCK_DOCTORS.map(d => ({ ...d, accepting: true }));
+  });
+
+  useEffect(() => {
+    localStorage.setItem('qc_doctors', JSON.stringify(doctorsList));
+  }, [doctorsList]);
 
   // Notifications helper
   const showToast = (message, type = 'success') => {
@@ -177,16 +196,21 @@ export default function App() {
   const handleAddPatient = async (e) => {
     e.preventDefault();
     if (!newPatientName.trim()) return;
+    if (!selectedDoctor) {
+      showToast('Please select a doctor to assign before registering.', 'error');
+      return;
+    }
     
     setActionLoading(true);
     try {
       const name = newPatientName.trim();
-      const assignedDoctorName = selectedDoctor ? selectedDoctor.name : 'General Physician';
+      const phone = newPatientPhone.trim() || 'N/A';
+      const assignedDoctorName = selectedDoctor.name;
       
       if (isSupabaseConfigured) {
         const { error: insertError } = await supabase
           .from('queue')
-          .insert([{ patient_name: name, status: 'waiting', doctor_name: assignedDoctorName }]);
+          .insert([{ patient_name: name, status: 'waiting', doctor_name: assignedDoctorName, phone_number: phone }]);
         
         if (insertError) throw insertError;
         showToast(`Token generated for ${name} (assigned to ${assignedDoctorName})!`, 'success');
@@ -198,6 +222,7 @@ export default function App() {
         const newPatient = {
           id: crypto.randomUUID(),
           patient_name: name,
+          phone_number: phone,
           token_number: nextTokenNum,
           doctor_name: assignedDoctorName,
           status: 'waiting',
@@ -210,6 +235,7 @@ export default function App() {
         showToast(`Token QC-101-${nextTokenNum} generated for ${name} (assigned to ${assignedDoctorName})!`, 'success');
       }
       setNewPatientName('');
+      setNewPatientPhone('');
       setSelectedDoctor(null);
       setDoctorSearchQuery('');
     } catch (err) {
@@ -285,6 +311,149 @@ export default function App() {
     } finally {
       setActionLoading(false);
     }
+  };
+
+  // Action: Doctor-specific Call Next Patient
+  const handleDocCallNext = async (doctorName) => {
+    setActionLoading(true);
+    try {
+      const activePatient = queue.find(p => p.status === 'in-consultation' && p.doctor_name === doctorName);
+      const waitingPatients = queue
+        .filter(p => p.status === 'waiting' && p.doctor_name === doctorName)
+        .sort((a, b) => a.token_number - b.token_number);
+
+      const nextPatient = waitingPatients[0];
+
+      if (!nextPatient) {
+        showToast('No more waiting patients assigned to you.', 'error');
+        setActionLoading(false);
+        return;
+      }
+
+      const nextToken = nextPatient.token_number;
+
+      if (isSupabaseConfigured) {
+        if (activePatient) {
+          await supabase
+            .from('queue')
+            .update({ status: 'completed' })
+            .eq('id', activePatient.id);
+        }
+
+        await supabase
+          .from('queue')
+          .update({ status: 'in-consultation' })
+          .eq('id', nextPatient.id);
+
+        const { error: settingsError } = await supabase
+          .from('settings')
+          .update({ current_serving_token: nextToken })
+          .eq('id', 1);
+
+        if (settingsError) throw settingsError;
+        showToast(`Calling patient: ${nextPatient.patient_name}`, 'success');
+      } else {
+        const updatedQueue = queue.map(p => {
+          if (p.status === 'in-consultation' && p.doctor_name === doctorName) return { ...p, status: 'completed' };
+          if (p.id === nextPatient.id) return { ...p, status: 'in-consultation' };
+          return p;
+        });
+
+        const updatedSettings = { ...settings, current_serving_token: nextToken };
+
+        setQueue(updatedQueue);
+        setSettings(updatedSettings);
+        localStorage.setItem('qc_queue', JSON.stringify(updatedQueue));
+        localStorage.setItem('qc_settings', JSON.stringify(updatedSettings));
+        showToast(`Calling patient: ${nextPatient.patient_name}`, 'success');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Error calling patient', 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Action: Doctor end session
+  const handleDocEndSession = async (doctorName) => {
+    setActionLoading(true);
+    try {
+      const activePatient = queue.find(p => p.status === 'in-consultation' && p.doctor_name === doctorName);
+      if (!activePatient) {
+        showToast('No active session to end.', 'error');
+        setActionLoading(false);
+        return;
+      }
+
+      if (isSupabaseConfigured) {
+        await supabase
+          .from('queue')
+          .update({ status: 'completed' })
+          .eq('id', activePatient.id);
+      } else {
+        const updatedQueue = queue.map(p => p.id === activePatient.id ? { ...p, status: 'completed' } : p);
+        setQueue(updatedQueue);
+        localStorage.setItem('qc_queue', JSON.stringify(updatedQueue));
+      }
+      showToast('Session ended successfully.', 'success');
+    } catch (err) {
+      console.error(err);
+      showToast('Error ending session.', 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Action: Notify Patient via SMS (Simulated)
+  const handleSendSMS = (patient) => {
+    const phone = patient.phone_number || '';
+    if (!phone || phone === 'N/A') {
+      showToast('No phone number registered for this patient.', 'error');
+      return;
+    }
+    const message = `Dear ${patient.patient_name}, your token QC-101-${patient.token_number} is about to be called. Please make your way to the consultation area.`;
+    alert(`[SIMULATED SMS to ${phone}]:\n"${message}"`);
+    showToast(`Notification sent to ${patient.patient_name}!`, 'success');
+  };
+
+  // Doctor login/registration handler
+  const handleDoctorSubmit = (e) => {
+    e.preventDefault();
+    if (!docPhone.trim() || !docName.trim()) {
+      showToast('Please fill all login/register details.', 'error');
+      return;
+    }
+
+    const existingDoc = doctorsList.find(d => d.phone === docPhone.trim() || d.name.toLowerCase() === docName.trim().toLowerCase());
+
+    if (existingDoc) {
+      setLoggedInDoctor(existingDoc);
+      setIsDoctorLoggedIn(true);
+      showToast(`Welcome back, ${existingDoc.name}!`, 'success');
+    } else {
+      const newDoc = {
+        id: doctorsList.length + 1,
+        name: docName.trim(),
+        phone: docPhone.trim(),
+        department: docDept,
+        chamber: docChamber,
+        accepting: true
+      };
+      const updatedDocs = [...doctorsList, newDoc];
+      setDoctorsList(updatedDocs);
+      setLoggedInDoctor(newDoc);
+      setIsDoctorLoggedIn(true);
+      showToast(`Doctor account created successfully for ${newDoc.name}!`, 'success');
+    }
+  };
+
+  const handleToggleAccepting = (acceptingVal) => {
+    if (!loggedInDoctor) return;
+    const updatedDocs = doctorsList.map(d => d.name === loggedInDoctor.name ? { ...d, accepting: acceptingVal } : d);
+    setDoctorsList(updatedDocs);
+    setLoggedInDoctor({ ...loggedInDoctor, accepting: acceptingVal });
+    showToast(`Status updated: Now ${acceptingVal ? 'Accepting' : 'Not Accepting'} patients.`, 'success');
   };
 
   // 5. Action: Update Average Consultation Time
@@ -378,7 +547,10 @@ export default function App() {
   const servingPatient = queue.find(p => p.token_number === settings.current_serving_token);
   const upcomingQueue = queue
     .filter(p => p.status === 'waiting' && p.token_number > settings.current_serving_token)
-    .sort((a, b) => a.token_number - b.token_number)
+    .sort((a, b) => a.token_number - b.token_number);
+
+  const filteredUpcomingQueue = upcomingQueue
+    .filter(p => p.patient_name.toLowerCase().includes(patientSearchQuery.toLowerCase()))
     .slice(0, 3);
 
   const waitingCount = queue.filter(p => p.status === 'waiting').length;
@@ -474,14 +646,14 @@ export default function App() {
                 <div>
                   {doctorSearchQuery.trim() !== '' ? (
                     <div className="flex flex-col gap-1.5">
-                      {MOCK_DOCTORS.filter(doc =>
+                      {doctorsList.filter(doc =>
                         doc.name.toLowerCase().includes(doctorSearchQuery.toLowerCase()) ||
                         doc.department.toLowerCase().includes(doctorSearchQuery.toLowerCase())
                       ).length === 0 ? (
                         <span className="text-xs text-slate-400 italic">No doctors found</span>
                       ) : (
                         <div className="flex flex-col gap-1.5">
-                          {MOCK_DOCTORS.filter(doc =>
+                          {doctorsList.filter(doc =>
                             doc.name.toLowerCase().includes(doctorSearchQuery.toLowerCase()) ||
                             doc.department.toLowerCase().includes(doctorSearchQuery.toLowerCase())
                           ).map(doc => (
@@ -489,14 +661,21 @@ export default function App() {
                               key={doc.id}
                               type="button"
                               onClick={() => setSelectedDoctor(selectedDoctor?.id === doc.id ? null : doc)}
-                              className={`flex items-center p-2 rounded border text-left text-xs transition ${
+                              className={`flex items-center justify-between p-2 rounded border text-left text-xs transition ${
                                 selectedDoctor?.id === doc.id
                                   ? 'bg-slate-900 text-white border-slate-900'
                                   : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
                               }`}
                             >
                               <div>
-                                <div className="font-semibold">{doc.name}</div>
+                                <div className="font-semibold flex items-center gap-1.5">
+                                  {doc.accepting ? (
+                                    <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block shrink-0" title="Accepting patients"></span>
+                                  ) : (
+                                    <span className="w-2 h-2 rounded-full bg-rose-500 inline-block shrink-0" title="Not accepting patients"></span>
+                                  )}
+                                  {doc.name}
+                                </div>
                                 <div className={`text-[10px] ${selectedDoctor?.id === doc.id ? 'text-slate-300' : 'text-slate-500'}`}>{doc.department}</div>
                               </div>
                             </button>
@@ -506,19 +685,26 @@ export default function App() {
                     </div>
                   ) : (
                     <div className="flex flex-col gap-1.5">
-                      {MOCK_DOCTORS.slice(0, 3).map(doc => (
+                      {doctorsList.slice(0, 3).map(doc => (
                         <button
                           key={doc.id}
                           type="button"
                           onClick={() => setSelectedDoctor(selectedDoctor?.id === doc.id ? null : doc)}
-                          className={`flex items-center p-2 rounded border text-left text-xs transition ${
+                          className={`flex items-center justify-between p-2 rounded border text-left text-xs transition ${
                             selectedDoctor?.id === doc.id
                               ? 'bg-slate-900 text-white border-slate-900'
                               : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
                           }`}
                         >
                           <div>
-                            <div className="font-semibold">{doc.name}</div>
+                            <div className="font-semibold flex items-center gap-1.5">
+                              {doc.accepting ? (
+                                <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block shrink-0" title="Accepting patients"></span>
+                              ) : (
+                                <span className="w-2 h-2 rounded-full bg-rose-500 inline-block shrink-0" title="Not accepting patients"></span>
+                              )}
+                              {doc.name}
+                            </div>
                             <div className={`text-[10px] ${selectedDoctor?.id === doc.id ? 'text-slate-300' : 'text-slate-500'}`}>{doc.department}</div>
                           </div>
                         </button>
@@ -527,27 +713,44 @@ export default function App() {
                   )}
                 </div>
               </div>
+              <div className="relative bg-white border border-slate-200/80 rounded-lg p-5 flex flex-col gap-3.5 overflow-hidden">
+                {/* Deactivated Overlay / Blur */}
+                {!selectedDoctor && (
+                  <div className="absolute inset-0 bg-slate-50/75 backdrop-blur-[2px] z-20 flex flex-col items-center justify-center p-4 text-center">
+                    <span className="text-sm font-bold text-slate-800 bg-white px-4 py-2 rounded-lg shadow-sm border border-slate-200 flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-amber-500 animate-pulse" />
+                      Select a Doctor First
+                    </span>
+                  </div>
+                )}
 
-              {/* Add Patient Card with embedded Consultation Time */}
-              <div className="bg-white border border-slate-200/80 rounded-lg p-5 flex flex-col gap-3.5">
                 <h3 className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
                   <UserPlus className="w-3.5 h-3.5 text-slate-500" />
                   New Registration
                 </h3>
                 <form onSubmit={handleAddPatient} className="flex flex-col gap-3">
-                  <div className="flex gap-2">
+                  <div className="flex flex-col gap-2">
                     <input
                       type="text"
                       required
+                      disabled={!selectedDoctor}
                       value={newPatientName}
                       onChange={(e) => setNewPatientName(e.target.value)}
                       placeholder="Patient Name"
-                      className="flex-1 px-3 py-2 rounded border border-slate-300 focus:outline-none focus:border-slate-400 text-xs text-slate-800 placeholder-slate-400"
+                      className="w-full px-3 py-2 rounded border border-slate-300 focus:outline-none focus:border-slate-400 text-xs text-slate-800 placeholder-slate-400 disabled:bg-slate-55 disabled:text-slate-400"
+                    />
+                    <input
+                      type="tel"
+                      disabled={!selectedDoctor}
+                      value={newPatientPhone}
+                      onChange={(e) => setNewPatientPhone(e.target.value)}
+                      placeholder="Mobile Phone Number (e.g. 9876543210)"
+                      className="w-full px-3 py-2 rounded border border-slate-300 focus:outline-none focus:border-slate-400 text-xs text-slate-800 placeholder-slate-400 disabled:bg-slate-55 disabled:text-slate-400"
                     />
                     <button
                       type="submit"
-                      disabled={actionLoading}
-                      className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-medium text-xs rounded transition flex items-center gap-1 disabled:opacity-50"
+                      disabled={actionLoading || !selectedDoctor}
+                      className="w-full py-2 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-200 disabled:text-slate-400 text-white font-medium text-xs rounded transition flex items-center justify-center gap-1 disabled:opacity-50"
                     >
                       Generate Token
                     </button>
@@ -555,7 +758,7 @@ export default function App() {
                   {selectedDoctor && (
                     <div className="text-[11px] text-slate-500 bg-slate-50 border border-slate-200 rounded px-2.5 py-1.5 flex items-center justify-between">
                       <span>Assigned to: <strong className="text-slate-800">{selectedDoctor.name}</strong> ({selectedDoctor.department})</span>
-                      <button type="button" onClick={() => setSelectedDoctor(null)} className="text-slate-400 hover:text-slate-600 font-bold text-xs" title="Clear assignment">×</button>
+                      <button type="button" onClick={() => setSelectedDoctor(null)} className="text-slate-400 hover:text-slate-650 font-bold text-xs" title="Clear assignment">×</button>
                     </div>
                   )}
                 </form>
@@ -601,6 +804,150 @@ export default function App() {
                   </div>
                 </div>
               </div>
+
+              {/* EMBEDDED DOCTOR DASHBOARD — DIRECTLY UNDER NEW REGISTRATION */}
+              <div className="bg-white border border-slate-200 rounded-lg p-5 flex flex-col gap-4 shadow-sm">
+                {!isDoctorLoggedIn ? (
+                  <div>
+                    <h3 className="text-xs font-semibold text-slate-700 flex items-center gap-1.5 border-b border-slate-100 pb-2 mb-3">
+                      <Users className="w-3.5 h-3.5 text-slate-500" />
+                      Doctor Portal (Login / Register)
+                    </h3>
+                    <form onSubmit={handleDoctorSubmit} className="flex flex-col gap-3">
+                      <div className="flex flex-col gap-2">
+                        <input
+                          type="tel"
+                          required
+                          placeholder="Phone Number (e.g. 9876543210)"
+                          value={docPhone}
+                          onChange={(e) => setDocPhone(e.target.value)}
+                          className="w-full px-3 py-2 rounded border border-slate-300 focus:outline-none focus:border-slate-400 text-xs text-slate-800"
+                        />
+                        <input
+                          type="text"
+                          required
+                          placeholder="Full Name (e.g. Dr. Arthur Dent)"
+                          value={docName}
+                          onChange={(e) => setDocName(e.target.value)}
+                          className="w-full px-3 py-2 rounded border border-slate-300 focus:outline-none focus:border-slate-400 text-xs text-slate-800"
+                        />
+                        <div className="grid grid-cols-2 gap-2">
+                          <select
+                            value={docDept}
+                            onChange={(e) => setDocDept(e.target.value)}
+                            className="w-full px-2 py-2 rounded border border-slate-300 bg-white focus:outline-none focus:border-slate-400 text-xs text-slate-800"
+                          >
+                            <option value="Cardiology">Cardiology</option>
+                            <option value="Pediatrics">Pediatrics</option>
+                            <option value="Neurology">Neurology</option>
+                            <option value="Orthopedics">Orthopedics</option>
+                            <option value="Dermatology">Dermatology</option>
+                            <option value="Psychiatry">Psychiatry</option>
+                            <option value="General Medicine">General Medicine</option>
+                            <option value="Oncology">Oncology</option>
+                          </select>
+                          <input
+                            type="text"
+                            placeholder="Chamber Room (e.g. 101)"
+                            value={docChamber}
+                            onChange={(e) => setDocChamber(e.target.value)}
+                            className="w-full px-3 py-2 rounded border border-slate-300 focus:outline-none focus:border-slate-400 text-xs text-slate-800"
+                          />
+                        </div>
+                        <button
+                          type="submit"
+                          className="w-full py-2 bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs rounded transition mt-1"
+                        >
+                          Login / Register
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                ) : (
+                  <div>
+                    <div className="flex justify-between items-start border-b border-slate-100 pb-3 mb-3">
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <h4 className="text-xs font-bold text-slate-900">{loggedInDoctor.name}</h4>
+                          {loggedInDoctor.accepting ? (
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block shrink-0" title="Accepting patients"></span>
+                          ) : (
+                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500 inline-block shrink-0" title="Not accepting patients"></span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-slate-450">{loggedInDoctor.department} • Room {loggedInDoctor.chamber}</p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setIsDoctorLoggedIn(false);
+                          setLoggedInDoctor(null);
+                        }}
+                        className="text-[10px] text-slate-400 hover:text-slate-650 border border-slate-200 rounded px-2 py-0.5 transition"
+                      >
+                        Logout
+                      </button>
+                    </div>
+
+                    <div className="flex flex-col gap-3">
+                      <div className="bg-slate-50 border border-slate-150 rounded p-3 flex flex-col gap-1.5">
+                        <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Active Patient</span>
+                        {queue.some(p => p.status === 'in-consultation' && p.doctor_name === loggedInDoctor.name) ? (
+                          <div>
+                            <div className="text-xs font-bold text-slate-800">
+                              {queue.find(p => p.status === 'in-consultation' && p.doctor_name === loggedInDoctor.name).patient_name}
+                            </div>
+                            <div className="text-[10px] text-slate-550 mt-0.5">
+                              Token: QC-101-{queue.find(p => p.status === 'in-consultation' && p.doctor_name === loggedInDoctor.name).token_number}
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-slate-400 italic">No active patient in chamber.</span>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          onClick={() => handleDocCallNext(loggedInDoctor.name)}
+                          disabled={actionLoading}
+                          className="py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs rounded transition disabled:opacity-50"
+                        >
+                          Call Next Patient
+                        </button>
+                        <button
+                          onClick={() => handleDocEndSession(loggedInDoctor.name)}
+                          disabled={actionLoading}
+                          className="py-2 bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs rounded transition disabled:opacity-50"
+                        >
+                          End Session
+                        </button>
+                      </div>
+
+                      <div className="flex gap-2 mt-1">
+                        <button
+                          onClick={() => handleToggleAccepting(true)}
+                          className={`flex-1 py-1.5 rounded border text-[11px] font-semibold transition ${
+                            loggedInDoctor.accepting
+                              ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                              : 'bg-white text-slate-650 border-slate-200 hover:bg-slate-50'
+                          }`}
+                        >
+                          Accept
+                        </button>
+                        <button
+                          onClick={() => handleToggleAccepting(false)}
+                          className={`flex-1 py-1.5 rounded border text-[11px] font-semibold transition ${
+                            !loggedInDoctor.accepting
+                              ? 'bg-rose-50 text-rose-800 border-rose-300'
+                              : 'bg-white text-slate-650 border-slate-200 hover:bg-slate-50'
+                          }`}
+                        >
+                          Stop Accept
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
             </section>
 
             {/* COLUMN 2: PATIENT WAITING ROOM VIEW */}
@@ -611,7 +958,6 @@ export default function App() {
                     <Activity className="w-4 h-4 text-slate-700" />
                     Waiting Room Display
                   </h2>
-                  <p className="text-[11px] text-slate-400">Public scoreboard synced for waiting patients.</p>
                 </div>
                 <div>
                   <select
@@ -660,31 +1006,55 @@ export default function App() {
 
               {/* Upcoming Queue - horizontal row format */}
               <div className="flex-1 flex flex-col gap-2.5">
-                <div className="flex justify-between items-center border-b border-slate-100 pb-2">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Upcoming Queue (Next 3)</span>
-                  <span className="text-[9px] text-slate-400">Refreshes in real-time</span>
+                <div className="flex flex-col gap-2 border-b border-slate-100 pb-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Upcoming Queue (Next 3)</span>
+                    <span className="text-[9px] text-slate-400">Refreshes in real-time</span>
+                  </div>
+                  
+                  {/* Search Patients Bar */}
+                  <div className="relative mt-1">
+                    <input
+                      type="text"
+                      value={patientSearchQuery}
+                      onChange={(e) => setPatientSearchQuery(e.target.value)}
+                      placeholder="Search patient by name..."
+                      className="w-full pl-8 pr-3 py-1.5 rounded border border-slate-200 focus:outline-none focus:border-slate-350 text-xs text-slate-800 placeholder-slate-400"
+                    />
+                    <Search className="w-3 h-3 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                  </div>
                 </div>
 
-                {upcomingQueue.length === 0 ? (
+                {filteredUpcomingQueue.length === 0 ? (
                   <div className="text-center py-8 bg-white border border-dashed border-slate-200 rounded-lg text-xs text-slate-400 italic">
-                    All caught up. No patients waiting.
+                    {patientSearchQuery.trim() ? 'No matching patients found.' : 'All caught up. No patients waiting.'}
                   </div>
                 ) : (
-                  <div className="flex flex-row gap-2 overflow-x-auto">
-                    {upcomingQueue.map((patient) => {
+                  <div className="flex flex-row gap-2 overflow-x-auto pb-1">
+                    {filteredUpcomingQueue.map((patient) => {
                       const waitTime = (patient.token_number - settings.current_serving_token) * settings.avg_consultation_time;
                       return (
                         <div
                           key={patient.id}
-                          className="flex-1 min-w-0 bg-white border border-slate-200 p-3 rounded-lg flex flex-col gap-1.5"
+                          className="flex-1 min-w-[170px] bg-white border border-slate-200 p-3 rounded-lg flex flex-col gap-1.5"
                         >
-                          <span className="inline-block px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 text-[10px] font-bold w-fit">
-                            QC-101-{patient.token_number}
-                          </span>
+                          <div className="flex justify-between items-start gap-1">
+                            <span className="inline-block px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 text-[10px] font-bold">
+                              QC-101-{patient.token_number}
+                            </span>
+                            <button
+                              onClick={() => handleSendSMS(patient)}
+                              className="text-[9px] bg-sky-50 hover:bg-sky-100 text-sky-700 font-semibold px-1.5 py-0.5 rounded border border-sky-150 transition"
+                              title="Notify patient via SMS"
+                            >
+                              SMS
+                            </button>
+                          </div>
                           <h4 className="font-bold text-slate-800 text-xs truncate">{patient.patient_name}</h4>
-                          <div className="flex items-center gap-1 text-[10px] font-semibold text-slate-500 mt-auto">
+                          <span className="text-[9px] text-slate-500 italic truncate">Dr: {patient.doctor_name}</span>
+                          <div className="flex items-center gap-1 text-[10px] font-semibold text-slate-500 mt-auto pt-1">
                             <Clock className="w-3 h-3 text-slate-400 flex-shrink-0" />
-                            <span>{waitTime} min wait</span>
+                            <span>{waitTime > 0 ? waitTime : settings.avg_consultation_time} min wait</span>
                           </div>
                         </div>
                       );
@@ -707,20 +1077,29 @@ export default function App() {
                   </span>
                 </div>
 
-                <button
-                  onClick={handleCallNext}
-                  disabled={actionLoading}
-                  className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs rounded transition flex items-center justify-center gap-1.5 disabled:opacity-50"
-                >
-                  <Play className="w-3.5 h-3.5 fill-current" />
-                  Call Next Patient
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleCallNext}
+                    disabled={actionLoading}
+                    className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs rounded transition flex items-center justify-center gap-1.5 disabled:opacity-50"
+                  >
+                    <Play className="w-3.5 h-3.5 fill-current" />
+                    Call Next Patient
+                  </button>
+                  <button
+                    onClick={handleReset}
+                    disabled={actionLoading}
+                    className="px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-250 font-semibold text-xs rounded transition flex items-center justify-center"
+                    title="Reset Queue"
+                  >
+                    Reset
+                  </button>
+                </div>
               </div>
             </section>
-            
+
           </div>
         )}
-        
       </main>
 
       {/* Footer */}
