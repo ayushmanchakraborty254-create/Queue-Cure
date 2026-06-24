@@ -24,29 +24,43 @@ import { downloadSessionReport } from './utils/docxGenerator';
 
 // Pre-seeded mock data for Demo Mode
 const MOCK_INITIAL_QUEUE = [
-  { id: '1', patient_name: 'David Miller', token_number: 1, doctor_name: 'Dr. Sarah Jenkins', status: 'in-consultation', phone_number: '9876543210', created_at: new Date(Date.now() - 3600000).toISOString() },
-  { id: '2', patient_name: 'Emily Watson', token_number: 2, doctor_name: 'Dr. James Carter', status: 'waiting', phone_number: '9876543211', created_at: new Date(Date.now() - 2400000).toISOString() },
-  { id: '3', patient_name: 'Robert Downey', token_number: 3, doctor_name: 'Dr. Elena Rostova', status: 'waiting', phone_number: '9876543212', created_at: new Date(Date.now() - 1200000).toISOString() },
-  { id: '4', patient_name: 'Sarah Connor', token_number: 4, doctor_name: 'Dr. Marcus Vance', status: 'waiting', phone_number: '9876543213', created_at: new Date(Date.now() - 600000).toISOString() },
-  { id: '5', patient_name: 'Bruce Wayne', token_number: 5, doctor_name: 'Dr. Robert Chen', status: 'waiting', phone_number: '9876543214', created_at: new Date(Date.now() - 300000).toISOString() },
-  { id: '6', patient_name: 'Clark Kent', token_number: 6, doctor_name: 'Dr. Lisa Kudrow', status: 'waiting', phone_number: '9876543215', created_at: new Date(Date.now() - 100000).toISOString() }
+  { id: '1', patient_name: 'David Miller', token_number: 1, doctor_name: 'Dr. Sarah Jenkins', status: 'completed', phone_number: '9876543210', created_at: new Date(Date.now() - 3600000).toISOString() },
+  { id: '2', patient_name: 'Emily Watson', token_number: 2, doctor_name: 'Dr. James Carter', status: 'completed', phone_number: '9876543211', created_at: new Date(Date.now() - 2400000).toISOString() },
+  { id: '3', patient_name: 'Robert Downey', token_number: 3, doctor_name: 'Dr. Elena Rostova', status: 'in-consultation', phone_number: '9876543212', created_at: new Date(Date.now() - 1200000).toISOString() },
+  { id: '4', patient_name: 'Sarah Connor', token_number: 4, doctor_name: 'Dr. Marcus Vance', status: 'waiting', consultation_type: 'Emergency', phone_number: '9876543213', created_at: new Date(Date.now() - 600000).toISOString() },
+  { id: '5', patient_name: 'Bruce Wayne', token_number: 5, doctor_name: 'Dr. Robert Chen', status: 'waiting', consultation_type: 'New Visit', phone_number: '9876543214', created_at: new Date(Date.now() - 300000).toISOString() },
+  { id: '6', patient_name: 'Clark Kent', token_number: 6, doctor_name: 'Dr. Lisa Kudrow', status: 'waiting', consultation_type: 'Follow-up', phone_number: '9876543215', created_at: new Date(Date.now() - 100000).toISOString() },
+  { id: '7', patient_name: 'Peter Parker', token_number: 7, doctor_name: 'Dr. Alan Grant', status: 'waiting', consultation_type: 'Routine Checkup', phone_number: '9876543216', created_at: new Date(Date.now() - 50000).toISOString() },
+  { id: '8', patient_name: 'Tony Stark', token_number: 8, doctor_name: 'Dr. Sarah Jenkins', status: 'waiting', consultation_type: 'Lab / Test Review', phone_number: '9876543217', created_at: new Date(Date.now() - 40000).toISOString() },
+  { id: '9', patient_name: 'Diana Prince', token_number: 9, doctor_name: 'Dr. James Carter', status: 'waiting', consultation_type: 'Vaccination', phone_number: '9876543218', created_at: new Date(Date.now() - 30000).toISOString() },
+  { id: '10', patient_name: 'Barry Allen', token_number: 10, doctor_name: 'Dr. Elena Rostova', status: 'waiting', consultation_type: 'Consultation Only', phone_number: '9876543219', created_at: new Date(Date.now() - 20000).toISOString() }
 ];
 
 const MOCK_INITIAL_SETTINGS = {
-  current_serving_token: 1,
+  current_serving_token: 3,
   avg_consultation_time: 15
 };
 
 const MOCK_DOCTORS = [
-  { id: 1, name: 'Dr. Sarah Jenkins', department: 'Cardiology', isBusy: true },
-  { id: 2, name: 'Dr. James Carter', department: 'Pediatrics', isBusy: true },
-  { id: 3, name: 'Dr. Elena Rostova', department: 'Neurology', isBusy: true },
-  { id: 4, name: 'Dr. Marcus Vance', department: 'Orthopedics', isBusy: true },
-  { id: 5, name: 'Dr. Robert Chen', department: 'Dermatology', isBusy: false },
-  { id: 6, name: 'Dr. Lisa Kudrow', department: 'Psychiatry', isBusy: false },
-  { id: 7, name: 'Dr. Alan Grant', department: 'General Medicine', isBusy: false },
-  { id: 8, name: 'Dr. Amanda Reyes', department: 'Oncology', isBusy: false }
+  { id: 1, name: 'Dr. Sarah Jenkins', department: 'Cardiology', isBusy: false, phone: '9876543201', chamber: '102' },
+  { id: 2, name: 'Dr. James Carter', department: 'Pediatrics', isBusy: false, phone: '9876543202', chamber: '103' },
+  { id: 3, name: 'Dr. Elena Rostova', department: 'Neurology', isBusy: true, phone: '9876543203', chamber: '104' },
+  { id: 4, name: 'Dr. Marcus Vance', department: 'Orthopedics', isBusy: false, phone: '9876543204', chamber: '105' },
+  { id: 5, name: 'Dr. Robert Chen', department: 'Dermatology', isBusy: false, phone: '9876543205', chamber: '106' },
+  { id: 6, name: 'Dr. Lisa Kudrow', department: 'Psychiatry', isBusy: false, phone: '9876543206', chamber: '107' },
+  { id: 7, name: 'Dr. Alan Grant', department: 'General Medicine', isBusy: false, phone: '9876543207', chamber: '108' }
 ];
+
+// Helper to sort queue with Emergency first
+const sortQueueWithEmergencyFirst = (patientsList) => {
+  return [...patientsList].sort((a, b) => {
+    const aIsEmergency = a.consultation_type === 'Emergency';
+    const bIsEmergency = b.consultation_type === 'Emergency';
+    if (aIsEmergency && !bIsEmergency) return -1;
+    if (!aIsEmergency && bIsEmergency) return 1;
+    return a.token_number - b.token_number;
+  });
+};
 
 export default function App() {
   // Application State
@@ -67,6 +81,11 @@ export default function App() {
   const [roomNumber, setRoomNumber] = useState('Room 101');
   const [patientSearchQuery, setPatientSearchQuery] = useState('');
   const [newPatientPhone, setNewPatientPhone] = useState('');
+  const [consultationType, setConsultationType] = useState('New Visit');
+  const [consultationStartedAt, setConsultationStartedAt] = useState(() => {
+    const saved = localStorage.getItem('qc_consultation_started_at');
+    return saved ? parseInt(saved, 10) : null;
+  });
   const [activeDropdownId, setActiveDropdownId] = useState(null);
   const [editingPatientId, setEditingPatientId] = useState(null);
   const [editPatientName, setEditPatientName] = useState('');
@@ -80,6 +99,7 @@ export default function App() {
   const [docDept, setDocDept] = useState('');
   const [docChamber, setDocChamber] = useState('');
   const [activeTab, setActiveTab] = useState('reception'); // 'reception' | 'doctor'
+  const [currentView, setCurrentView] = useState('receptionist'); // 'receptionist' | 'patient'
   const [docSuggestions, setDocSuggestions] = useState([]);
   const [detectedDoctor, setDetectedDoctor] = useState(null);
   const [doctorsList, setDoctorsList] = useState(() => {
@@ -125,6 +145,20 @@ export default function App() {
   // SMS/WhatsApp Modal State
   const [smsModalPatient, setSmsModalPatient] = useState(null);
 
+  // One-time local storage migration to force-load new 10-patient, 7-doctor mock data
+  useEffect(() => {
+    const version = localStorage.getItem('qc_version_v2');
+    if (version !== 'v2') {
+      localStorage.removeItem('qc_queue');
+      localStorage.removeItem('qc_settings');
+      localStorage.removeItem('qc_doctors');
+      localStorage.removeItem('qc_active_sessions');
+      localStorage.removeItem('qc_consultation_started_at');
+      localStorage.setItem('qc_version_v2', 'v2');
+      window.location.reload();
+    }
+  }, []);
+
   useEffect(() => {
     localStorage.setItem('qc_doctors', JSON.stringify(doctorsList));
   }, [doctorsList]);
@@ -136,6 +170,30 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('qc_active_sessions', JSON.stringify(activeSessions));
   }, [activeSessions]);
+
+  // GAP 1 FIX: Cross-tab sync for Demo/localStorage mode
+  // When a second tab (e.g. patient-facing screen) is open, it listens for
+  // storage changes triggered by the receptionist tab and updates its state.
+  useEffect(() => {
+    if (isSupabaseConfigured) return; // Supabase realtime handles this already
+    const handleStorageChange = (e) => {
+      if (e.key === 'qc_queue' && e.newValue) {
+        try { setQueue(JSON.parse(e.newValue)); } catch (_) {}
+      }
+      if (e.key === 'qc_settings' && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          setSettings(parsed);
+          setAvgConsultTime(parsed.avg_consultation_time);
+        } catch (_) {}
+      }
+      if (e.key === 'qc_consultation_started_at') {
+        setConsultationStartedAt(e.newValue ? parseInt(e.newValue, 10) : null);
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
 
   // Notifications helper
   const showToast = (message, type = 'success') => {
@@ -263,11 +321,12 @@ export default function App() {
       const name = newPatientName.trim();
       const phone = newPatientPhone.trim() || 'N/A';
       const assignedDoctorName = selectedDoctor.name;
+      const visitType = consultationType;
       
       if (isSupabaseConfigured) {
         const { error: insertError } = await supabase
           .from('queue')
-          .insert([{ patient_name: name, status: 'waiting', doctor_name: assignedDoctorName, phone_number: phone }]);
+          .insert([{ patient_name: name, status: 'waiting', doctor_name: assignedDoctorName, phone_number: phone, consultation_type: visitType }]);
         
         if (insertError) throw insertError;
         showToast(`Token generated for ${name} (assigned to ${assignedDoctorName})!`, 'success');
@@ -282,6 +341,7 @@ export default function App() {
           phone_number: phone,
           token_number: nextTokenNum,
           doctor_name: assignedDoctorName,
+          consultation_type: visitType,
           status: 'waiting',
           created_at: new Date().toISOString()
         };
@@ -293,6 +353,7 @@ export default function App() {
       }
       setNewPatientName('');
       setNewPatientPhone('');
+      setConsultationType('New Visit');
       setSelectedDoctor(null);
       setDoctorSearchQuery('');
     } catch (err) {
@@ -308,14 +369,9 @@ export default function App() {
     setActionLoading(true);
     try {
       const activePatient = queue.find(p => p.status === 'in-consultation');
-      const waitingPatients = queue
-        .filter(p => p.status === 'waiting')
-        .sort((a, b) => a.token_number - b.token_number);
-
-      // Find the next waiting patient whose token is greater than current, skip removed tokens
-      const nextPatient = waitingPatients.find(
-        p => p.token_number > settings.current_serving_token
-      ) || waitingPatients[0];
+      const waitingPatients = queue.filter(p => p.status === 'waiting');
+      const sortedWaiting = sortQueueWithEmergencyFirst(waitingPatients);
+      const nextPatient = sortedWaiting[0];
 
       if (!nextPatient) {
         showToast('No more patients waiting in the queue.', 'error');
@@ -326,6 +382,16 @@ export default function App() {
       const nextToken = nextPatient.token_number;
 
       if (isSupabaseConfigured) {
+        // GAP 3 FIX: Optimistic concurrency check — re-fetch current token before writing
+        // This prevents two receptionists from calling the same patient simultaneously
+        const { data: freshSettings, error: freshErr } = await supabase
+          .from('settings').select('current_serving_token').eq('id', 1).maybeSingle();
+        if (!freshErr && freshSettings && freshSettings.current_serving_token !== settings.current_serving_token) {
+          showToast('Queue was updated by another user — please try again.', 'error');
+          setActionLoading(false);
+          return;
+        }
+
         if (activePatient) {
           await supabase
             .from('queue')
@@ -362,6 +428,11 @@ export default function App() {
 
         showToast(`Calling Token QC-101-${nextToken}: ${nextPatient.patient_name}`, 'success');
       }
+
+      // GAP 2 FIX: Record when this consultation started so wait times can be corrected
+      const startedAt = Date.now();
+      setConsultationStartedAt(startedAt);
+      localStorage.setItem('qc_consultation_started_at', String(startedAt));
     } catch (err) {
       console.error(err);
       showToast(err.message || 'Failed to call next patient', 'error');
@@ -407,11 +478,9 @@ export default function App() {
     setActionLoading(true);
     try {
       const activePatient = queue.find(p => p.status === 'in-consultation' && p.doctor_name === doctorName);
-      const waitingPatients = queue
-        .filter(p => p.status === 'waiting' && p.doctor_name === doctorName)
-        .sort((a, b) => a.token_number - b.token_number);
-
-      const nextPatient = waitingPatients[0];
+      const waitingPatients = queue.filter(p => p.status === 'waiting' && p.doctor_name === doctorName);
+      const sortedWaiting = sortQueueWithEmergencyFirst(waitingPatients);
+      const nextPatient = sortedWaiting[0];
 
       if (!nextPatient) {
         showToast('No more waiting patients assigned to you.', 'error');
@@ -478,6 +547,11 @@ export default function App() {
         });
         setCurrentPrescriptionNo('');
       }
+
+      // GAP 2 FIX: Record consultation start time for elapsed-time-aware wait estimates
+      const startedAt = Date.now();
+      setConsultationStartedAt(startedAt);
+      localStorage.setItem('qc_consultation_started_at', String(startedAt));
 
       showToast(`Calling patient: ${nextPatient.patient_name}`, 'success');
     } catch (err) {
@@ -800,13 +874,333 @@ export default function App() {
   };
 
   const servingPatient = queue.find(p => p.token_number === settings.current_serving_token);
-  const upcomingQueue = queue
-    .filter(p => p.status === 'waiting' && p.token_number > settings.current_serving_token)
-    .sort((a, b) => a.token_number - b.token_number);
+  const upcomingQueue = sortQueueWithEmergencyFirst(
+    queue.filter(p => p.status === 'waiting')
+  );
 
   const filteredUpcomingQueue = upcomingQueue
     .filter(p => p.patient_name.toLowerCase().includes(patientSearchQuery.toLowerCase()))
     .slice(0, 3);
+
+  // Smart Alerts Helper
+  const renderSmartAlerts = () => {
+    const emergencyAlerts = queue
+      .filter(p => p.status === 'waiting' && p.consultation_type === 'Emergency')
+      .map(p => {
+        const waitTimeMs = Date.now() - new Date(p.created_at).getTime();
+        const waitMins = Math.floor(waitTimeMs / 60000);
+        return {
+          id: `emergency-wait-${p.id}`,
+          type: 'critical',
+          message: `Emergency patient "${p.patient_name}" (QC-101-${p.token_number}) has been waiting for ${waitMins} min! Please call them next.`,
+          mins: waitMins
+        };
+      })
+      .filter(a => a.mins >= 5);
+
+    const overloadAlerts = [];
+    const waitingPatientsCount = queue.filter(p => p.status === 'waiting').length;
+    if (waitingPatientsCount > 8) {
+      overloadAlerts.push({
+        id: 'high-traffic',
+        type: 'warning',
+        message: `High queue volume detected: ${waitingPatientsCount} patients waiting.`
+      });
+    }
+
+    const activeDoctors = doctorsList.filter(d => d.phone);
+    const acceptingDocsCount = activeDoctors.filter(d => d.accepting).length;
+    if (activeDoctors.length > 0 && acceptingDocsCount === 0) {
+      overloadAlerts.push({
+        id: 'no-doctors-accepting',
+        type: 'warning',
+        message: 'No active doctors are currently accepting patients.'
+      });
+    }
+
+    const activeSessionCount = Object.keys(activeSessions).length;
+    const sessionAlerts = [];
+    if (activeSessionCount > 0) {
+      sessionAlerts.push({
+        id: 'active-sessions-info',
+        type: 'info',
+        message: `${activeSessionCount} doctor chamber session(s) active.`
+      });
+    }
+
+    const allAlerts = [...emergencyAlerts, ...overloadAlerts, ...sessionAlerts];
+
+    return (
+      <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs flex flex-col gap-3.5">
+        <div className="flex justify-between items-center border-b border-slate-100 pb-2">
+          <h3 className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
+            <ShieldAlert className="w-4 h-4 text-slate-655" />
+            Smart Alert Dashboard
+          </h3>
+          <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
+            allAlerts.length > 0 ? 'bg-rose-100 text-rose-700 animate-pulse font-bold' : 'bg-emerald-100 text-emerald-700'
+          }`}>
+            {allAlerts.length} Alerts
+          </span>
+        </div>
+
+        {allAlerts.length === 0 ? (
+          <div className="flex items-center gap-2.5 p-3 rounded-lg bg-emerald-50/50 border border-emerald-100/60 text-emerald-800 text-xs font-medium">
+            <Check className="w-4 h-4 text-emerald-600" />
+            <span>All systems clear. Clinic flow running smoothly.</span>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2 max-h-[220px] overflow-y-auto pr-1">
+            {allAlerts.map(alert => (
+              <div
+                key={alert.id}
+                className={`flex items-start gap-2.5 p-3 rounded-lg border text-xs font-medium ${
+                  alert.type === 'critical'
+                    ? 'bg-rose-50 border-rose-200 text-rose-800'
+                    : alert.type === 'warning'
+                      ? 'bg-amber-50 border-amber-200 text-amber-800'
+                      : 'bg-sky-50 border-sky-200 text-sky-850'
+                }`}
+              >
+                {alert.type === 'critical' ? (
+                  <ShieldAlert className="w-4 h-4 text-rose-600 shrink-0 mt-0.5 animate-pulse" />
+                ) : alert.type === 'warning' ? (
+                  <Clock className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                ) : (
+                  <Activity className="w-4 h-4 text-sky-600 shrink-0 mt-0.5" />
+                )}
+                <span className="leading-relaxed">{alert.message}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Analytics Helper
+  const renderAnalytics = () => {
+    const totalCount = queue.length;
+    const activeWaiting = queue.filter(p => p.status === 'waiting').length;
+    const completed = queue.filter(p => p.status === 'completed').length;
+    const inConsult = queue.filter(p => p.status === 'in-consultation').length;
+    
+    const typeBreakdown = {
+      'New Visit': 0,
+      'Follow-up': 0,
+      'Emergency': 0,
+      'Routine Checkup': 0,
+      'Lab / Test Review': 0,
+      'Vaccination': 0,
+      'Consultation Only': 0
+    };
+    
+    queue.forEach(p => {
+      const type = p.consultation_type || 'New Visit';
+      if (typeBreakdown[type] !== undefined) {
+        typeBreakdown[type] += 1;
+      }
+    });
+
+    const docLoad = {};
+    doctorsList.filter(d => d.phone).forEach(doc => {
+      docLoad[doc.name] = 0;
+    });
+    queue.forEach(p => {
+      if (p.status === 'waiting' || p.status === 'in-consultation') {
+        docLoad[p.doctor_name] = (docLoad[p.doctor_name] || 0) + 1;
+      }
+    });
+
+    return (
+      <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs flex flex-col gap-4">
+        <h3 className="text-sm font-bold text-slate-800 flex items-center gap-1.5 border-b border-slate-100 pb-2">
+          <Activity className="w-4 h-4 text-slate-650" />
+          Clinic Analytics Panel
+        </h3>
+
+        <div className="grid grid-cols-2 gap-2.5">
+          <div className="bg-slate-50 border border-slate-150 p-2.5 rounded-lg text-center flex flex-col">
+            <span className="text-[10px] font-semibold text-slate-450 uppercase font-bold">Today's Registry</span>
+            <span className="text-base font-extrabold text-slate-900">{totalCount}</span>
+          </div>
+          <div className="bg-slate-50 border border-slate-150 p-2.5 rounded-lg text-center flex flex-col">
+            <span className="text-[10px] font-semibold text-slate-450 uppercase font-bold">In Chambers</span>
+            <span className="text-base font-extrabold text-slate-900">{inConsult}</span>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Analytics</span>
+          <div className="flex flex-col gap-1.5 bg-slate-50/50 border border-slate-150 rounded-lg p-3">
+            {Object.entries(typeBreakdown).map(([type, count]) => {
+              const pct = totalCount > 0 ? Math.round((count / totalCount) * 100) : 0;
+              return (
+                <div key={type} className="flex flex-col gap-1">
+                  <div className="flex justify-between items-center text-[10.5px]">
+                    <span className="font-semibold text-slate-600">{type}</span>
+                    <span className="font-bold text-slate-900">{count} ({pct}%)</span>
+                  </div>
+                  <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${
+                        type === 'Emergency'
+                          ? 'bg-rose-500'
+                          : type === 'Follow-up'
+                            ? 'bg-indigo-500'
+                            : 'bg-slate-700'
+                      }`}
+                      style={{ width: `${pct}%` }}
+                    ></div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Chamber Patients Waiting</span>
+          <div className="flex flex-col gap-1 bg-slate-50/50 border border-slate-150 rounded-lg p-3">
+            {Object.entries(docLoad).length === 0 ? (
+              <span className="text-[10.5px] text-slate-400 italic">No registered doctors online.</span>
+            ) : (
+              Object.entries(docLoad).map(([docName, count]) => (
+                <div key={docName} className="flex justify-between items-center text-[10.5px] border-b border-slate-100 last:border-0 py-1 last:py-0">
+                  <span className="font-medium text-slate-600">{docName}</span>
+                  <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-bold text-[9.5px]">{count} waiting</span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Full Patient waiting list helper
+  const renderAllPatientsQueue = () => {
+    const inChamberPatients = queue.filter(p => p.status === 'in-consultation');
+    const waitingList = upcomingQueue;
+    const allActivePatients = [...inChamberPatients, ...waitingList];
+
+    return (
+      <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs flex flex-col gap-4">
+        <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+          <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+            <Users className="w-4 h-4 text-slate-600" />
+            All Patients Waiting Queue
+          </h3>
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider bg-slate-100 px-2 py-0.5 rounded">
+            {waitingList.length} In Queue
+          </span>
+        </div>
+
+        {allActivePatients.length === 0 ? (
+          <div className="text-center py-12 text-xs text-slate-450 italic border border-dashed border-slate-200 rounded-lg">
+            No patients currently in the queue.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-slate-200 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                  <th className="py-2.5 px-3">Token</th>
+                  <th className="py-2.5 px-3">Patient Name</th>
+                  <th className="py-2.5 px-3">Assigned Doctor</th>
+                  <th className="py-2.5 px-3">Consultation Type</th>
+                  <th className="py-2.5 px-3">Est. Wait</th>
+                  <th className="py-2.5 px-3 text-right">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-xs">
+                {allActivePatients.map((patient) => {
+                  const isServing = patient.status === 'in-consultation';
+                  const isEmergency = patient.consultation_type === 'Emergency';
+                  
+                  const indexInQueue = waitingList.findIndex(p => p.id === patient.id);
+                  const slotsAhead = indexInQueue !== -1 ? indexInQueue + 1 : 0;
+                  const elapsedMinutes = consultationStartedAt
+                    ? Math.floor((Date.now() - consultationStartedAt) / 60000)
+                    : 0;
+                  const rawWait = slotsAhead * settings.avg_consultation_time;
+                  const waitTime = Math.max(0, rawWait - elapsedMinutes);
+                  const isNext = indexInQueue === 0;
+
+                  return (
+                    <tr
+                      key={patient.id}
+                      className={`transition ${
+                        isServing
+                          ? 'bg-slate-50/80 font-medium'
+                          : isEmergency
+                            ? 'bg-rose-50/50 hover:bg-rose-50'
+                            : 'hover:bg-slate-50/50'
+                      }`}
+                    >
+                      <td className="py-3 px-3">
+                        <span className={`inline-block px-1.5 py-0.5 rounded text-[10.5px] font-bold ${
+                          isServing
+                            ? 'bg-slate-900 text-white'
+                            : isEmergency
+                              ? 'bg-rose-100 text-rose-700 animate-pulse border border-rose-200'
+                              : 'bg-slate-100 text-slate-700'
+                        }`}>
+                          QC-101-{patient.token_number}
+                        </span>
+                      </td>
+                      <td className="py-3 px-3 font-semibold text-slate-900">
+                        {patient.patient_name}
+                      </td>
+                      <td className="py-3 px-3 text-slate-600">
+                        {patient.doctor_name}
+                      </td>
+                      <td className="py-3 px-3">
+                        {isEmergency ? (
+                          <span className="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 bg-rose-100 text-rose-700 rounded border border-rose-200">
+                            <span className="w-1 h-1 rounded-full bg-rose-500 animate-ping"></span>
+                            🚨 Emergency
+                          </span>
+                        ) : (
+                          <span className="inline-block px-1.5 py-0.5 bg-slate-100 text-slate-650 rounded text-[9.5px]">
+                            {patient.consultation_type || 'New Visit'}
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3 px-3">
+                        {isServing ? (
+                          <span className="text-[10px] text-slate-400 font-semibold uppercase">In Consultation</span>
+                        ) : isNext && waitTime === 0 ? (
+                          <span className="text-[10.5px] font-bold text-emerald-600 animate-pulse">You're next!</span>
+                        ) : (
+                          <span className="font-semibold text-slate-700">{waitTime} min</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-3 text-right">
+                        {isServing ? (
+                          <span className="inline-block px-2 py-0.5 text-[9px] font-bold bg-slate-900 text-white rounded-full">
+                            In Chamber
+                          </span>
+                        ) : isNext ? (
+                          <span className="inline-block px-2 py-0.5 text-[9px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-250 rounded-full animate-pulse">
+                            Prepare
+                          </span>
+                        ) : (
+                          <span className="inline-block px-2 py-0.5 text-[9px] font-medium bg-slate-100 text-slate-500 rounded-full">
+                            Waiting
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const waitingCount = queue.filter(p => p.status === 'waiting').length;
   const completedCount = queue.filter(p => p.status === 'completed').length;
@@ -838,6 +1232,34 @@ export default function App() {
             <p className="text-[10px] text-slate-400 font-semibold tracking-wider uppercase">Clinic Queue Director</p>
           </div>
         </div>
+
+        {/* View Switcher Tabs */}
+        <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200 shadow-xs">
+          <button
+            type="button"
+            onClick={() => setCurrentView('receptionist')}
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-md text-xs font-semibold transition-all duration-200 cursor-pointer ${
+              currentView === 'receptionist'
+                ? 'bg-white text-slate-950 shadow-xs border border-slate-200/50 font-bold'
+                : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <Users className="w-3.5 h-3.5 text-slate-600" />
+            Receptionist Console
+          </button>
+          <button
+            type="button"
+            onClick={() => setCurrentView('patient')}
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-md text-xs font-semibold transition-all duration-200 cursor-pointer ${
+              currentView === 'patient'
+                ? 'bg-white text-slate-950 shadow-xs border border-slate-200/50 font-bold'
+                : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <Activity className="w-3.5 h-3.5 text-slate-600" />
+            Patient Display
+          </button>
+        </div>
       </header>
 
       {/* Main Grid Layout */}
@@ -860,569 +1282,731 @@ export default function App() {
               Retry
             </button>
           </div>
-        ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            
-            {/* COLUMN 1: RECEPTIONIST VIEW */}
-            <section className="minimal-panel rounded-xl p-6 flex flex-col gap-6">
-              <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-                <div>
-                  <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                    <Users className="w-4 h-4 text-slate-700" />
-                    Receptionist Counter
-                  </h2>
-                  <p className="text-[11px] text-slate-400">Add patients and advance queue serving tokens.</p>
-                </div>
-                <span className="text-[9px] font-bold tracking-wider text-slate-400 bg-slate-100 px-2 py-0.5 rounded uppercase">
-                  Reception
-                </span>
-              </div>
-
-              {/* Assign Doctor Card */}
-              <div className="bg-white border border-slate-200/80 rounded-lg p-5 flex flex-col gap-3.5">
-                <h3 className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
-                  <Users className="w-4 h-4 text-slate-600" />
-                  Assign Doctor
-                </h3>
-                
-                {/* Search Bar */}
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={doctorSearchQuery}
-                    onChange={(e) => setDoctorSearchQuery(e.target.value)}
-                    placeholder="Search doctor by name or department..."
-                    className="w-full pl-8 pr-3 py-2 rounded border border-slate-300 focus:outline-none focus:border-slate-400 text-xs text-slate-800 placeholder-slate-400"
-                  />
-                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
-                </div>
-
-                {/* Doctor Listings — only portal-registered doctors */}
-                <div>
-                  {(() => {
-                    const registeredDocs = doctorsList.filter(doc => doc.phone);
-                    const searchedDocs = doctorSearchQuery.trim() !== ''
-                      ? registeredDocs.filter(doc =>
-                          doc.name.toLowerCase().includes(doctorSearchQuery.toLowerCase()) ||
-                          (doc.department || '').toLowerCase().includes(doctorSearchQuery.toLowerCase())
-                        )
-                      : registeredDocs;
-
-                    if (registeredDocs.length === 0) {
-                      return (
-                        <div className="text-center py-4 text-[11px] text-slate-400 italic border border-dashed border-slate-200 rounded-md">
-                          No registered doctors yet.<br />Register via the Dr. Portal below.
-                        </div>
-                      );
-                    }
-
-                    if (searchedDocs.length === 0) {
-                      return <span className="text-xs text-slate-400 italic">No doctors found</span>;
-                    }
-
-                    return (
-                      <div className="flex flex-col gap-1.5">
-                        {searchedDocs.map(doc => (
-                          <button
-                            key={doc.id}
-                            type="button"
-                            onClick={() => setSelectedDoctor(selectedDoctor?.id === doc.id ? null : doc)}
-                            className={`flex items-center justify-between gap-3 p-2 rounded border text-left text-xs transition ${
-                              selectedDoctor?.id === doc.id
-                                ? 'bg-slate-900 text-white border-slate-900'
-                                : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
-                            }`}
-                          >
-                            {/* Left: name + department */}
-                            <div className="min-w-0">
-                              <div className="font-semibold truncate">{doc.name}</div>
-                              <div className={`text-[10px] ${selectedDoctor?.id === doc.id ? 'text-slate-300' : 'text-slate-500'}`}>
-                                {doc.department}{doc.chamber ? ` • Room ${doc.chamber}` : ''}
-                              </div>
-                            </div>
-                            {/* Right: status badge */}
-                            <div className="shrink-0">
-                              {doc.accepting === false ? (
-                                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-600 whitespace-nowrap">Not Accepting</span>
-                              ) : (
-                                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 whitespace-nowrap">Accepting</span>
-                              )}
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                    );
-                  })()}
-                </div>
-              </div>
-              <div className="relative bg-white border border-slate-200/80 rounded-lg p-5 flex flex-col gap-3.5 overflow-hidden">
-                {/* Deactivated Overlay / Blur */}
-                {!selectedDoctor && (
-                  <div className="absolute inset-0 bg-slate-50/75 backdrop-blur-[2px] z-20 flex flex-col items-center justify-center p-4 text-center">
-                    <span className="text-sm font-bold text-slate-800 bg-white px-4 py-2 rounded-lg shadow-sm border border-slate-200 flex items-center gap-2">
-                      <Clock className="w-4 h-4 text-amber-500 animate-pulse" />
-                      Select a Doctor First
-                    </span>
+        ) : currentView === 'receptionist' ? (
+          /* RECEPTIONIST DASHBOARD */
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-fadeIn">
+            <div className="flex flex-col gap-6">
+              {/* COLUMN 1: RECEPTIONIST VIEW */}
+              <section className="minimal-panel rounded-xl p-6 flex flex-col gap-6">
+                <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                  <div>
+                    <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                      <Users className="w-4 h-4 text-slate-700" />
+                      Receptionist Counter
+                    </h2>
+                    <p className="text-[11px] text-slate-400">Add patients and advance queue serving tokens.</p>
                   </div>
-                )}
+                  <span className="text-[9px] font-bold tracking-wider text-slate-400 bg-slate-100 px-2 py-0.5 rounded uppercase">
+                    Reception
+                  </span>
+                </div>
 
-                <h3 className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
-                  <UserPlus className="w-4 h-4 text-slate-600" />
-                  New Registration
-                </h3>
-                <form onSubmit={handleAddPatient} className="flex flex-col gap-3">
-                  <div className="flex flex-col gap-2">
+                {/* Assign Doctor Card */}
+                <div className="bg-white border border-slate-200/80 rounded-lg p-5 flex flex-col gap-3.5">
+                  <h3 className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
+                    <Users className="w-4 h-4 text-slate-600" />
+                    Assign Doctor
+                  </h3>
+                  
+                  {/* Search Bar */}
+                  <div className="relative">
                     <input
                       type="text"
-                      required
-                      disabled={!selectedDoctor}
-                      value={newPatientName}
-                      onChange={(e) => setNewPatientName(e.target.value)}
-                      placeholder="Patient Name"
-                      className="w-full px-3 py-2 rounded border border-slate-300 focus:outline-none focus:border-slate-400 text-xs text-slate-800 placeholder-slate-400 disabled:bg-slate-55 disabled:text-slate-400"
+                      value={doctorSearchQuery}
+                      onChange={(e) => setDoctorSearchQuery(e.target.value)}
+                      placeholder="Search doctor by name or department..."
+                      className="w-full pl-8 pr-3 py-2 rounded border border-slate-300 focus:outline-none focus:border-slate-400 text-xs text-slate-800 placeholder-slate-400"
                     />
-                    <input
-                      type="tel"
-                      disabled={!selectedDoctor}
-                      value={newPatientPhone}
-                      onChange={(e) => setNewPatientPhone(e.target.value)}
-                      placeholder="Mobile Phone Number (e.g. 9876543210)"
-                      className="w-full px-3 py-2 rounded border border-slate-300 focus:outline-none focus:border-slate-400 text-xs text-slate-800 placeholder-slate-400 disabled:bg-slate-55 disabled:text-slate-400"
-                    />
-                    <button
-                      type="submit"
-                      disabled={actionLoading || !selectedDoctor}
-                      className="w-full py-2 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-200 disabled:text-slate-400 text-white font-medium text-xs rounded transition flex items-center justify-center gap-1 disabled:opacity-50"
-                    >
-                      Generate Token
-                    </button>
+                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
                   </div>
-                  {selectedDoctor && (
-                    <div className="text-[11px] text-slate-500 bg-slate-50 border border-slate-200 rounded px-2.5 py-1.5 flex items-center justify-between">
-                      <span>Assigned to: <strong className="text-slate-800">{selectedDoctor.name}</strong> ({selectedDoctor.department})</span>
-                      <button type="button" onClick={() => setSelectedDoctor(null)} className="text-slate-400 hover:text-slate-650 font-bold text-xs" title="Clear assignment">×</button>
+
+                  {/* Doctor Listings */}
+                  <div>
+                    {(() => {
+                      const registeredDocs = doctorsList.filter(doc => doc.phone);
+                      const searchedDocs = doctorSearchQuery.trim() !== ''
+                        ? registeredDocs.filter(doc =>
+                            doc.name.toLowerCase().includes(doctorSearchQuery.toLowerCase()) ||
+                            (doc.department || '').toLowerCase().includes(doctorSearchQuery.toLowerCase())
+                          )
+                        : registeredDocs;
+
+                      if (registeredDocs.length === 0) {
+                        return (
+                          <div className="text-center py-4 text-[11px] text-slate-400 italic border border-dashed border-slate-200 rounded-md">
+                            No registered doctors yet.<br />Register via the Dr. Portal below.
+                          </div>
+                        );
+                      }
+
+                      if (searchedDocs.length === 0) {
+                        return <span className="text-xs text-slate-400 italic">No doctors found</span>;
+                      }
+
+                      return (
+                        <div className="flex flex-col gap-1.5">
+                          {searchedDocs.map(doc => (
+                            <button
+                              key={doc.id}
+                              type="button"
+                              onClick={() => setSelectedDoctor(selectedDoctor?.id === doc.id ? null : doc)}
+                              className={`flex items-center justify-between gap-3 p-2 rounded border text-left text-xs transition ${
+                                selectedDoctor?.id === doc.id
+                                  ? 'bg-slate-900 text-white border-slate-900'
+                                  : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
+                              }`}
+                            >
+                              <div className="min-w-0">
+                                <div className="font-semibold truncate">{doc.name}</div>
+                                <div className={`text-[10px] ${selectedDoctor?.id === doc.id ? 'text-slate-300' : 'text-slate-500'}`}>
+                                  {doc.department}{doc.chamber ? ` • Room ${doc.chamber}` : ''}
+                                </div>
+                              </div>
+                              <div className="shrink-0">
+                                {doc.accepting === false ? (
+                                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-600 whitespace-nowrap">Not Accepting</span>
+                                ) : (
+                                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 whitespace-nowrap">Accepting</span>
+                                )}
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
+
+                {/* Smart Alerts — above New Registration */}
+                {renderSmartAlerts()}
+
+                <div className="relative bg-white border border-slate-200/80 rounded-lg p-5 flex flex-col gap-3.5 overflow-hidden">
+                  {!selectedDoctor && (
+                    <div className="absolute inset-0 bg-slate-50/75 backdrop-blur-[2px] z-20 flex flex-col items-center justify-center p-4 text-center">
+                      <span className="text-sm font-bold text-slate-800 bg-white px-4 py-2 rounded-lg shadow-sm border border-slate-200 flex items-center gap-2">
+                        <Clock className="w-4 h-4 text-amber-500 animate-pulse" />
+                        Select a Doctor First
+                      </span>
                     </div>
                   )}
-                </form>
 
-                {/* Consultation Time — inside registration card */}
-                <div className="border-t border-slate-100 pt-3 flex flex-col gap-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-slate-600 flex items-center gap-1.5">
-                      <Clock className="w-3.5 h-3.5 text-slate-400" />
-                      Consultation Time
-                    </span>
-                    <div className="flex items-center border border-slate-300 rounded overflow-hidden">
-                      <div className="px-3 py-1.5 text-xs font-bold text-slate-800 bg-slate-50/50 min-w-[70px] text-center">
-                        {avgConsultTime} min
+                  <h3 className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
+                    <UserPlus className="w-4 h-4 text-slate-600" />
+                    New Registration
+                  </h3>
+                  <form onSubmit={handleAddPatient} className="flex flex-col gap-3">
+                    <div className="flex flex-col gap-2">
+                      <input
+                        type="text"
+                        required
+                        disabled={!selectedDoctor}
+                        value={newPatientName}
+                        onChange={(e) => setNewPatientName(e.target.value)}
+                        placeholder="Patient Name"
+                        className="w-full px-3 py-2 rounded border border-slate-300 focus:outline-none focus:border-slate-400 text-xs text-slate-800 placeholder-slate-400 disabled:bg-slate-55 disabled:text-slate-400"
+                      />
+                      <input
+                        type="tel"
+                        disabled={!selectedDoctor}
+                        value={newPatientPhone}
+                        onChange={(e) => setNewPatientPhone(e.target.value)}
+                        placeholder="Mobile Phone Number (e.g. 9876543210)"
+                        className="w-full px-3 py-2 rounded border border-slate-300 focus:outline-none focus:border-slate-400 text-xs text-slate-800 placeholder-slate-400 disabled:bg-slate-55 disabled:text-slate-400"
+                      />
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Consultation Type</label>
+                        <select
+                          disabled={!selectedDoctor}
+                          value={consultationType}
+                          onChange={(e) => setConsultationType(e.target.value)}
+                          className="w-full px-3 py-2 rounded border border-slate-300 focus:outline-none focus:border-slate-400 text-xs text-slate-800 bg-white disabled:bg-slate-50 disabled:text-slate-400 cursor-pointer"
+                        >
+                          <option value="New Visit">🩺 New Visit</option>
+                          <option value="Follow-up">🔄 Follow-up</option>
+                          <option value="Emergency">🚨 Emergency</option>
+                          <option value="Routine Checkup">✅ Routine Checkup</option>
+                          <option value="Lab / Test Review">🧪 Lab / Test Review</option>
+                          <option value="Vaccination">💉 Vaccination</option>
+                          <option value="Consultation Only">📋 Consultation Only</option>
+                        </select>
                       </div>
-                      <div className="flex flex-col border-l border-slate-200">
-                        <button
-                          type="button"
-                          onClick={() => handleUpdateAvgTime(avgConsultTime + 1)}
-                          className="px-2 py-0.5 hover:bg-slate-50 border-b border-slate-150 flex items-center justify-center text-slate-500 hover:text-slate-800 transition"
-                          title="Increase time"
-                        >
-                          <ChevronUp className="w-3 h-3" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleUpdateAvgTime(Math.max(1, avgConsultTime - 1))}
-                          className="px-2 py-0.5 hover:bg-slate-50 flex items-center justify-center text-slate-500 hover:text-slate-800 transition"
-                          title="Decrease time"
-                        >
-                          <ChevronDown className="w-3 h-3" />
-                        </button>
+                      <button
+                        type="submit"
+                        disabled={actionLoading || !selectedDoctor}
+                        className="w-full py-2 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-200 disabled:text-slate-400 text-white font-medium text-xs rounded transition flex items-center justify-center gap-1 disabled:opacity-50"
+                      >
+                        Generate Token
+                      </button>
+                    </div>
+                    {selectedDoctor && (
+                      <div className="text-[11px] text-slate-500 bg-slate-50 border border-slate-200 rounded px-2.5 py-1.5 flex items-center justify-between">
+                        <span>Assigned to: <strong className="text-slate-800">{selectedDoctor.name}</strong> ({selectedDoctor.department})</span>
+                        <button type="button" onClick={() => setSelectedDoctor(null)} className="text-slate-400 hover:text-slate-655 font-bold text-xs" title="Clear assignment">×</button>
+                      </div>
+                    )}
+                  </form>
+
+                  <div className="border-t border-slate-100 pt-3 flex flex-col gap-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-slate-600 flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5 text-slate-400" />
+                        Consultation Time
+                      </span>
+                      <div className="flex items-center border border-slate-300 rounded overflow-hidden">
+                        <div className="px-3 py-1.5 text-xs font-bold text-slate-800 bg-slate-50/50 min-w-[70px] text-center">
+                          {avgConsultTime} min
+                        </div>
+                        <div className="flex flex-col border-l border-slate-200">
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateAvgTime(avgConsultTime + 1)}
+                            className="px-2 py-0.5 hover:bg-slate-50 border-b border-slate-150 flex items-center justify-center text-slate-500 hover:text-slate-800 transition"
+                            title="Increase time"
+                          >
+                            <ChevronUp className="w-3 h-3" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateAvgTime(Math.max(1, avgConsultTime - 1))}
+                            className="px-2 py-0.5 hover:bg-slate-50 flex items-center justify-center text-slate-500 hover:text-slate-800 transition"
+                            title="Decrease time"
+                          >
+                            <ChevronDown className="w-3 h-3" />
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  {/* Centered Last Called Token inside the same New Registration box */}
-                  <div className="flex flex-col items-center justify-center py-2 bg-slate-50 border border-slate-200/60 rounded-md">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Last Called Token</span>
-                    <span className="text-xl font-extrabold text-slate-900 tracking-tight mt-0.5">
-                      {settings.current_serving_token > 0 ? `QC-101-${settings.current_serving_token}` : '—'}
-                    </span>
+                    <div className="flex flex-col items-center justify-center py-2 bg-slate-50 border border-slate-200/60 rounded-md">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Last Called Token</span>
+                      <span className="text-xl font-extrabold text-slate-900 tracking-tight mt-0.5">
+                        {settings.current_serving_token > 0 ? `QC-101-${settings.current_serving_token}` : '—'}
+                      </span>
+                    </div>
                   </div>
+                </div>
+
+                {/* Doctor Dashboard inside Receptionist Counter */}
+                <div className="bg-white border border-slate-200 rounded-lg p-5 flex flex-col gap-4 shadow-xs">
+                  {!isDoctorLoggedIn ? (
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-800 flex items-center gap-1.5 border-b border-slate-100 pb-2 mb-3">
+                        <Users className="w-4 h-4 text-slate-600" />
+                        Dr. Login / Register
+                      </h3>
+                      <form onSubmit={handleDoctorSubmit} className="flex flex-col gap-2">
+                        <div className="relative">
+                          <input
+                            type="text"
+                            required
+                            placeholder="Full Name (e.g. Dr. Arthur Dent)"
+                            value={docName}
+                            autoComplete="off"
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setDocName(val);
+                              setDetectedDoctor(null);
+                              if (val.trim().length >= 2) {
+                                const matches = doctorsList.filter(d =>
+                                  d.phone &&
+                                  d.name.toLowerCase().includes(val.toLowerCase())
+                                );
+                                setDocSuggestions(matches);
+                              } else {
+                                setDocSuggestions([]);
+                              }
+                            }}
+                            onBlur={() => setTimeout(() => setDocSuggestions([]), 150)}
+                            className={`w-full px-3 py-2 rounded border text-xs text-slate-800 focus:outline-none transition ${
+                              detectedDoctor ? 'border-emerald-400 bg-emerald-50/40' : 'border-slate-300 focus:border-slate-400'
+                            }`}
+                          />
+                          {docSuggestions.length > 0 && (
+                            <div className="absolute z-30 left-0 right-0 top-full mt-0.5 bg-white border border-slate-200 rounded-md shadow-md overflow-hidden">
+                              {docSuggestions.map(s => (
+                                <button
+                                  key={s.id}
+                                  type="button"
+                                  onMouseDown={() => {
+                                    setDocName(s.name);
+                                    setDocPhone(s.phone || '');
+                                    setDocDept(s.department || '');
+                                    setDocChamber(s.chamber || '');
+                                    setDetectedDoctor(s);
+                                    setDocSuggestions([]);
+                                  }}
+                                  className="w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center gap-2 border-b border-slate-100 last:border-0"
+                                >
+                                  <div>
+                                    <div className="text-xs font-semibold text-slate-800">{s.name}</div>
+                                    <div className="text-[10px] text-slate-500">{s.department}{s.chamber ? ` • Room ${s.chamber}` : ''}</div>
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="relative">
+                          <input
+                            type="tel"
+                            required
+                            placeholder="Phone Number (e.g. 9876543210)"
+                            value={docPhone}
+                            autoComplete="off"
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setDocPhone(val);
+                              setDetectedDoctor(null);
+                              if (val.trim().length >= 4) {
+                                const matches = doctorsList.filter(d =>
+                                  d.phone &&
+                                  d.phone.includes(val)
+                                );
+                                setDocSuggestions(matches);
+                              } else {
+                                setDocSuggestions([]);
+                              }
+                            }}
+                            onBlur={() => setTimeout(() => setDocSuggestions([]), 150)}
+                            className={`w-full px-3 py-2 rounded border text-xs text-slate-800 focus:outline-none transition ${
+                              detectedDoctor ? 'border-emerald-400 bg-emerald-50/40' : 'border-slate-300 focus:border-slate-400'
+                            }`}
+                          />
+                          {docSuggestions.length > 0 && (
+                            <div className="absolute z-30 left-0 right-0 top-full mt-0.5 bg-white border border-slate-200 rounded-md shadow-md overflow-hidden">
+                              {docSuggestions.map(s => (
+                                <button
+                                  key={s.id}
+                                  type="button"
+                                  onMouseDown={() => {
+                                    setDocName(s.name);
+                                    setDocPhone(s.phone || '');
+                                    setDocDept(s.department || '');
+                                    setDocChamber(s.chamber || '');
+                                    setDetectedDoctor(s);
+                                    setDocSuggestions([]);
+                                  }}
+                                  className="w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center gap-2 border-b border-slate-100 last:border-0"
+                                >
+                                  <div>
+                                    <div className="text-xs font-semibold text-slate-800">{s.name}</div>
+                                    <div className="text-[10px] text-slate-500">{s.phone} • {s.department}{s.chamber ? ` • Room ${s.chamber}` : ''}</div>
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {!detectedDoctor && (
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="relative">
+                              <input
+                                list="dept-options"
+                                required
+                                placeholder="Department"
+                                value={docDept}
+                                onChange={(e) => setDocDept(e.target.value)}
+                                className="w-full px-3 py-2 rounded border border-slate-300 focus:outline-none focus:border-slate-400 text-xs text-slate-800 bg-white"
+                              />
+                              <datalist id="dept-options">
+                                <option value="Cardiology" />
+                                <option value="Pediatrics" />
+                                <option value="Neurology" />
+                                <option value="Orthopedics" />
+                                <option value="Dermatology" />
+                                <option value="Psychiatry" />
+                                <option value="General Medicine" />
+                                <option value="Oncology" />
+                                <option value="ENT" />
+                                <option value="Gynecology" />
+                                <option value="Radiology" />
+                                <option value="Ophthalmology" />
+                              </datalist>
+                            </div>
+                            <div className="relative">
+                              <input
+                                list="room-options"
+                                required
+                                placeholder="Room No."
+                                value={docChamber}
+                                onChange={(e) => setDocChamber(e.target.value)}
+                                className="w-full px-3 py-2 rounded border border-slate-300 focus:outline-none focus:border-slate-400 text-xs text-slate-800 bg-white"
+                              />
+                              <datalist id="room-options">
+                                {Array.from({ length: 50 }, (_, i) => (
+                                  <option key={101 + i} value={String(101 + i)} />
+                                ))}
+                              </datalist>
+                            </div>
+                          </div>
+                        )}
+
+                        {detectedDoctor && (
+                          <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded px-3 py-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>
+                            <span className="text-[11px] text-emerald-800 font-medium">
+                              Recognised: {detectedDoctor.name} — {detectedDoctor.department}{detectedDoctor.chamber ? `, Room ${detectedDoctor.chamber}` : ''}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setDetectedDoctor(null);
+                                setDocName(''); setDocPhone(''); setDocDept(''); setDocChamber('');
+                              }}
+                              className="ml-auto text-emerald-500 hover:text-emerald-700 text-xs font-bold"
+                            >×</button>
+                          </div>
+                        )}
+
+                        <button
+                          type="submit"
+                          className={`w-full py-2 text-white font-semibold text-xs rounded transition cursor-pointer ${
+                            detectedDoctor
+                              ? 'bg-emerald-600 hover:bg-emerald-700'
+                              : 'bg-slate-900 hover:bg-slate-800'
+                          }`}
+                        >
+                          {detectedDoctor ? 'Login' : 'Register'}
+                        </button>
+                      </form>
+                    </div>
+                  ) : (
+                    <div>
+                      <div className="flex justify-between items-start border-b border-slate-100 pb-3 mb-3">
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <h4 className="text-xs font-bold text-slate-900">{loggedInDoctor.name}</h4>
+                            {loggedInDoctor.accepting ? (
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block shrink-0" title="Accepting patients"></span>
+                            ) : (
+                              <span className="w-1.5 h-1.5 rounded-full bg-rose-500 inline-block shrink-0" title="Not accepting patients"></span>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-slate-450">{loggedInDoctor.department} • Room {loggedInDoctor.chamber}</p>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setIsDoctorLoggedIn(false);
+                            setLoggedInDoctor(null);
+                            setDocName(''); setDocPhone(''); setDocDept(''); setDocChamber('');
+                            setDetectedDoctor(null); setDocSuggestions([]);
+                          }}
+                          className="text-[10px] text-slate-400 hover:text-slate-650 border border-slate-200 rounded px-2 py-0.5 transition"
+                        >
+                          Logout
+                        </button>
+                      </div>
+
+                      <div className="flex flex-col gap-3">
+                        {!activeSessions[loggedInDoctor.phone] ? (
+                          <div className="flex flex-col gap-3 py-1 border-t border-slate-100 mt-1 pt-3 animate-fadeIn">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Consultation Session</span>
+                            <form onSubmit={handleStartSession} className="flex flex-col gap-2">
+                              <input
+                                type="text"
+                                value={sessionNameInput}
+                                onChange={(e) => setSessionNameInput(e.target.value)}
+                                placeholder="Session name (e.g. Morning OPD)"
+                                className="w-full px-3 py-2 rounded border border-slate-355 focus:outline-none focus:border-slate-400 text-xs text-slate-800 bg-white placeholder-slate-400"
+                              />
+                              <button
+                                type="submit"
+                                className="w-full py-2 bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs rounded transition flex items-center justify-center gap-1.5 cursor-pointer"
+                              >
+                                <BookOpen className="w-3.5 h-3.5" />
+                                Start Session
+                              </button>
+                            </form>
+                          </div>
+                        ) : (
+                          (() => {
+                            const currentSession = activeSessions[loggedInDoctor.phone];
+                            const hasActivePatient = queue.some(p => p.status === 'in-consultation' && p.doctor_name === loggedInDoctor.name);
+                            return (
+                              <div className="flex flex-col gap-3.5 animate-fadeIn">
+                                <div className="bg-emerald-50 border border-emerald-100 rounded p-2.5 flex items-center justify-between shadow-xs">
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <span className="relative flex h-2 w-2 shrink-0">
+                                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                                    </span>
+                                    <span className="text-[11px] font-bold text-emerald-800 truncate" title={currentSession.sessionName}>
+                                      Active: {currentSession.sessionName}
+                                    </span>
+                                  </div>
+                                  <span className="text-[9px] font-bold text-emerald-700 bg-white px-2 py-0.5 rounded border border-emerald-250 shrink-0 shadow-xs">
+                                    {currentSession.attendedPatients.length} Attended
+                                  </span>
+                                </div>
+
+                                <div className="bg-slate-50 border border-slate-200 rounded p-3.5 flex flex-col gap-2">
+                                  <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Active Patient</span>
+                                  {hasActivePatient ? (
+                                    (() => {
+                                      const activePatient = queue.find(p => p.status === 'in-consultation' && p.doctor_name === loggedInDoctor.name);
+                                      return (
+                                        <div className="flex flex-col gap-3">
+                                          <div className="flex justify-between items-start">
+                                            <div>
+                                              <div className="text-xs font-extrabold text-slate-800">
+                                                {activePatient.patient_name}
+                                              </div>
+                                              <div className="text-[10px] text-slate-400 font-semibold mt-0.5">
+                                                Token: QC-101-{activePatient.token_number}
+                                              </div>
+                                            </div>
+                                          </div>
+                                          <div className="flex flex-col gap-1 border-t border-slate-200/80 pt-2.5">
+                                            <label className="text-[9.5px] font-bold text-slate-450 uppercase tracking-wide">Prescription No.</label>
+                                            <input
+                                              type="text"
+                                              value={currentPrescriptionNo}
+                                              onChange={(e) => setCurrentPrescriptionNo(e.target.value)}
+                                              placeholder="Enter prescription no. or details..."
+                                              className="w-full px-2 py-1.5 rounded border border-slate-300 focus:outline-none focus:border-slate-400 text-xs text-slate-800 bg-white placeholder-slate-400"
+                                            />
+                                          </div>
+                                        </div>
+                                      );
+                                    })()
+                                  ) : (
+                                    <span className="text-xs text-slate-400 italic">No active patient in consultation.</span>
+                                  )}
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDocCallNext(loggedInDoctor.name)}
+                                    disabled={actionLoading || !loggedInDoctor.accepting}
+                                    className="py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-200 disabled:text-slate-400 text-white font-semibold text-xs rounded transition flex items-center justify-center gap-1 cursor-pointer disabled:cursor-not-allowed"
+                                  >
+                                    <Play className="w-3 h-3 fill-current" />
+                                    Call Next Patient
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDocEndSession(loggedInDoctor.name)}
+                                    disabled={actionLoading || !hasActivePatient}
+                                    className="py-2 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-200 disabled:text-slate-400 text-white font-semibold text-xs rounded transition flex items-center justify-center gap-1 cursor-pointer"
+                                  >
+                                    <Check className="w-3.5 h-3.5" />
+                                    End Consult
+                                  </button>
+                                </div>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleDocCloseSession(loggedInDoctor.name)}
+                                  disabled={actionLoading}
+                                  className="w-full py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-250 font-semibold text-xs rounded transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                                >
+                                  <X className="w-3.5 h-3.5 text-slate-500" />
+                                  End Session & Save Report
+                                </button>
+                              </div>
+                            );
+                          })()
+                        )}
+
+                        <div className="flex gap-2 mt-1 border-t border-slate-100 pt-3">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleAccepting(true)}
+                            className={`flex-1 py-1.5 rounded border text-[11px] font-semibold transition cursor-pointer ${
+                              loggedInDoctor.accepting
+                                ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                                : 'bg-white text-slate-650 border-slate-200 hover:bg-slate-50'
+                            }`}
+                          >
+                            Accept
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleToggleAccepting(false)}
+                            className={`flex-1 py-1.5 rounded border text-[11px] font-semibold transition cursor-pointer ${
+                              !loggedInDoctor.accepting
+                                ? 'bg-rose-50 text-rose-800 border-rose-300'
+                                : 'bg-white text-slate-650 border-slate-200 hover:bg-slate-50'
+                            }`}
+                          >
+                            Stop Accept
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+              </section>
+            </div>
+
+            <div className="flex flex-col gap-6">
+              {/* Queue Control */}
+              <div className="bg-white border border-slate-200/80 rounded-lg p-5 flex flex-col gap-4">
+                <h3 className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                  <Play className="w-3.5 h-3.5 text-slate-500" />
+                  Queue Control
+                </h3>
+
+                <div className="flex justify-between items-center bg-slate-50 border border-slate-100 rounded px-3 py-2 text-xs">
+                  <span className="text-slate-500">Currently Serving Token:</span>
+                  <span className="font-bold text-slate-800">
+                    {settings.current_serving_token > 0 ? `QC-101-${settings.current_serving_token}` : '—'}
+                  </span>
+                </div>
+
+                <div className="flex flex-col gap-2 border-t border-slate-100 pt-3">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Next 3 Patients</span>
+                  {upcomingQueue.slice(0, 3).length === 0 ? (
+                    <div className="text-center py-2.5 text-xs text-slate-440 italic bg-slate-50/50 border border-dashed border-slate-200 rounded-md">
+                      No patients waiting in queue.
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-1.5">
+                      {upcomingQueue.slice(0, 3).map((patient) => {
+                        const isEmergency = patient.consultation_type === 'Emergency';
+                        return (
+                          <div 
+                            key={patient.id} 
+                            className={`border rounded px-3 py-1.5 transition-all duration-300 ${
+                              isEmergency
+                                ? 'bg-rose-50 border-rose-200 text-rose-955 shadow-xs shadow-rose-100/50'
+                                : 'bg-slate-50 border-slate-200'
+                            }`}
+                          >
+                            {editingPatientId === patient.id ? (
+                              <form 
+                                onSubmit={(e) => {
+                                  e.preventDefault();
+                                  handleUpdatePatient(patient.id, editPatientName, editPatientToken);
+                                  setEditingPatientId(null);
+                                }}
+                                className="w-full flex flex-col gap-2 py-0.5"
+                              >
+                                <div className="flex flex-col gap-1">
+                                  <label className="text-[9px] font-bold text-slate-400 uppercase">Patient Name</label>
+                                  <input
+                                    type="text"
+                                    required
+                                    value={editPatientName}
+                                    onChange={(e) => setEditPatientName(e.target.value)}
+                                    className="w-full px-2 py-1 border border-slate-300 rounded text-xs text-slate-800 focus:outline-none focus:border-slate-400 bg-white"
+                                  />
+                                </div>
+                                <div className="flex flex-col gap-1">
+                                  <label className="text-[9px] font-bold text-slate-400 uppercase">Token Number</label>
+                                  <div className="flex items-center gap-1">
+                                    <span className="text-xs text-slate-450 font-semibold shrink-0">QC-101-</span>
+                                    <input
+                                      type="number"
+                                      required
+                                      value={editPatientToken}
+                                      onChange={(e) => setEditPatientToken(e.target.value)}
+                                      className="w-full px-2 py-1 border border-slate-300 rounded text-xs text-slate-800 focus:outline-none focus:border-slate-400 bg-white"
+                                    />
+                                  </div>
+                                </div>
+                                <div className="flex justify-end gap-1.5 mt-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditingPatientId(null)}
+                                    className="px-2 py-1 hover:bg-slate-200 text-[10px] font-semibold text-slate-600 rounded transition"
+                                  >
+                                    Cancel
+                                  </button>
+                                  <button
+                                    type="submit"
+                                    className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white text-[10px] font-semibold rounded transition"
+                                  >
+                                    Save
+                                  </button>
+                                </div>
+                              </form>
+                            ) : (
+                              <div className="flex justify-between items-center w-full">
+                                <div className="flex flex-col min-w-0">
+                                  <span className="text-xs font-semibold text-slate-800 truncate flex items-center gap-1.5">
+                                    {patient.patient_name}
+                                    {isEmergency && (
+                                      <span className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded bg-rose-100 text-rose-750 text-[8px] font-bold uppercase tracking-wider animate-pulse border border-rose-200">
+                                        🚨 Emergency
+                                      </span>
+                                    )}
+                                  </span>
+                                  <span className="text-[10px] text-slate-400 mt-0.5">QC-101-{patient.token_number}</span>
+                                </div>
+                                <div className="flex items-center gap-1 shrink-0 relative group">
+                                  <button
+                                    type="button"
+                                    className="p-1 hover:bg-slate-200 text-slate-450 hover:text-slate-650 rounded transition cursor-pointer"
+                                    title="More Options"
+                                  >
+                                    <MoreVertical className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemovePatient(patient.id, patient.patient_name)}
+                                    className="p-1 hover:bg-rose-50 text-slate-455 hover:text-rose-600 rounded transition shrink-0 cursor-pointer"
+                                    title="Cancel Patient"
+                                  >
+                                    <X className="w-3.5 h-3.5" />
+                                  </button>
+
+                                  <div className="absolute right-0 top-6 hidden group-hover:block bg-white border border-slate-200 rounded shadow-md z-30 py-1 min-w-[70px]">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setEditingPatientId(patient.id);
+                                        setEditPatientName(patient.patient_name);
+                                        setEditPatientToken(String(patient.token_number));
+                                      }}
+                                      className="w-full text-left px-3 py-1.5 hover:bg-slate-50 text-xs font-medium text-slate-700 cursor-pointer"
+                                    >
+                                      Edit
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleCallNext}
+                    disabled={actionLoading}
+                    className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs rounded transition flex items-center justify-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                  >
+                    <Play className="w-3.5 h-3.5 fill-current" />
+                    Call Next Patient
+                  </button>
+                  <button
+                    onClick={handleReset}
+                    disabled={actionLoading}
+                    className="px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-250 font-semibold text-xs rounded transition flex items-center justify-center cursor-pointer"
+                    title="Reset Queue"
+                  >
+                    Reset
+                  </button>
                 </div>
               </div>
 
-              {/* EMBEDDED DOCTOR DASHBOARD — DIRECTLY UNDER NEW REGISTRATION */}
-              <div className="bg-white border border-slate-200 rounded-lg p-5 flex flex-col gap-4 shadow-sm">
-                {!isDoctorLoggedIn ? (
-                  <div>
-                    <h3 className="text-sm font-bold text-slate-800 flex items-center gap-1.5 border-b border-slate-100 pb-2 mb-3">
-                      <Users className="w-4 h-4 text-slate-600" />
-                      Dr. Login / Register
-                    </h3>
-                    <form onSubmit={handleDoctorSubmit} className="flex flex-col gap-2">
+              {renderAnalytics()}
 
-                      {/* Full Name with live suggestion dropdown */}
-                      <div className="relative">
-                        <input
-                          type="text"
-                          required
-                          placeholder="Full Name (e.g. Dr. Arthur Dent)"
-                          value={docName}
-                          autoComplete="off"
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setDocName(val);
-                            setDetectedDoctor(null);
-                            if (val.trim().length >= 2) {
-                              const matches = doctorsList.filter(d =>
-                                d.phone &&
-                                d.name.toLowerCase().includes(val.toLowerCase())
-                              );
-                              setDocSuggestions(matches);
-                            } else {
-                              setDocSuggestions([]);
-                            }
-                          }}
-                          onBlur={() => setTimeout(() => setDocSuggestions([]), 150)}
-                          className={`w-full px-3 py-2 rounded border text-xs text-slate-800 focus:outline-none transition ${
-                            detectedDoctor ? 'border-emerald-400 bg-emerald-50/40' : 'border-slate-300 focus:border-slate-400'
-                          }`}
-                        />
-                        {docSuggestions.length > 0 && (
-                          <div className="absolute z-30 left-0 right-0 top-full mt-0.5 bg-white border border-slate-200 rounded-md shadow-md overflow-hidden">
-                            {docSuggestions.map(s => (
-                              <button
-                                key={s.id}
-                                type="button"
-                                onMouseDown={() => {
-                                  setDocName(s.name);
-                                  setDocPhone(s.phone || '');
-                                  setDocDept(s.department || '');
-                                  setDocChamber(s.chamber || '');
-                                  setDetectedDoctor(s);
-                                  setDocSuggestions([]);
-                                }}
-                                className="w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center gap-2 border-b border-slate-100 last:border-0"
-                              >
-                                <div>
-                                  <div className="text-xs font-semibold text-slate-800">{s.name}</div>
-                                  <div className="text-[10px] text-slate-500">{s.department}{s.chamber ? ` • Room ${s.chamber}` : ''}</div>
-                                </div>
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Phone with live suggestion */}
-                      <div className="relative">
-                        <input
-                          type="tel"
-                          required
-                          placeholder="Phone Number (e.g. 9876543210)"
-                          value={docPhone}
-                          autoComplete="off"
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setDocPhone(val);
-                            setDetectedDoctor(null);
-                            if (val.trim().length >= 4) {
-                              const matches = doctorsList.filter(d =>
-                                d.phone &&
-                                d.phone.includes(val)
-                              );
-                              setDocSuggestions(matches);
-                            } else {
-                              setDocSuggestions([]);
-                            }
-                          }}
-                          onBlur={() => setTimeout(() => setDocSuggestions([]), 150)}
-                          className={`w-full px-3 py-2 rounded border text-xs text-slate-800 focus:outline-none transition ${
-                            detectedDoctor ? 'border-emerald-400 bg-emerald-50/40' : 'border-slate-300 focus:border-slate-400'
-                          }`}
-                        />
-                        {docSuggestions.length > 0 && (
-                          <div className="absolute z-30 left-0 right-0 top-full mt-0.5 bg-white border border-slate-200 rounded-md shadow-md overflow-hidden">
-                            {docSuggestions.map(s => (
-                              <button
-                                key={s.id}
-                                type="button"
-                                onMouseDown={() => {
-                                  setDocName(s.name);
-                                  setDocPhone(s.phone || '');
-                                  setDocDept(s.department || '');
-                                  setDocChamber(s.chamber || '');
-                                  setDetectedDoctor(s);
-                                  setDocSuggestions([]);
-                                }}
-                                className="w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center gap-2 border-b border-slate-100 last:border-0"
-                              >
-                                <div>
-                                  <div className="text-xs font-semibold text-slate-800">{s.name}</div>
-                                  <div className="text-[10px] text-slate-500">{s.phone} • {s.department}{s.chamber ? ` • Room ${s.chamber}` : ''}</div>
-                                </div>
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Department & Room — hidden when logging in as existing doctor */}
-                      {!detectedDoctor && (
-                        <div className="grid grid-cols-2 gap-2">
-                          <div className="relative">
-                            <input
-                              list="dept-options"
-                              required
-                              placeholder="Department"
-                              value={docDept}
-                              onChange={(e) => setDocDept(e.target.value)}
-                              className="w-full px-3 py-2 rounded border border-slate-300 focus:outline-none focus:border-slate-400 text-xs text-slate-800 bg-white"
-                            />
-                            <datalist id="dept-options">
-                              <option value="Cardiology" />
-                              <option value="Pediatrics" />
-                              <option value="Neurology" />
-                              <option value="Orthopedics" />
-                              <option value="Dermatology" />
-                              <option value="Psychiatry" />
-                              <option value="General Medicine" />
-                              <option value="Oncology" />
-                              <option value="ENT" />
-                              <option value="Gynecology" />
-                              <option value="Radiology" />
-                              <option value="Ophthalmology" />
-                            </datalist>
-                          </div>
-                          <div className="relative">
-                            <input
-                              list="room-options"
-                              required
-                              placeholder="Room No."
-                              value={docChamber}
-                              onChange={(e) => setDocChamber(e.target.value)}
-                              className="w-full px-3 py-2 rounded border border-slate-300 focus:outline-none focus:border-slate-400 text-xs text-slate-800 bg-white"
-                            />
-                            <datalist id="room-options">
-                              {Array.from({ length: 50 }, (_, i) => (
-                                <option key={101 + i} value={String(101 + i)} />
-                              ))}
-                            </datalist>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Detected doctor badge */}
-                      {detectedDoctor && (
-                        <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded px-3 py-1.5">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>
-                          <span className="text-[11px] text-emerald-800 font-medium">
-                            Recognised: {detectedDoctor.name} — {detectedDoctor.department}{detectedDoctor.chamber ? `, Room ${detectedDoctor.chamber}` : ''}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setDetectedDoctor(null);
-                              setDocName(''); setDocPhone(''); setDocDept(''); setDocChamber('');
-                            }}
-                            className="ml-auto text-emerald-500 hover:text-emerald-700 text-xs font-bold"
-                          >×</button>
-                        </div>
-                      )}
-
-                      <button
-                        type="submit"
-                        className={`w-full py-2 text-white font-semibold text-xs rounded transition ${
-                          detectedDoctor
-                            ? 'bg-emerald-600 hover:bg-emerald-700'
-                            : 'bg-slate-900 hover:bg-slate-800'
-                        }`}
-                      >
-                        {detectedDoctor ? 'Login' : 'Register'}
-                      </button>
-                    </form>
-                  </div>
-                ) : (
-                  <div>
-                    <div className="flex justify-between items-start border-b border-slate-100 pb-3 mb-3">
-                      <div>
-                        <div className="flex items-center gap-1.5">
-                          <h4 className="text-xs font-bold text-slate-900">{loggedInDoctor.name}</h4>
-                          {loggedInDoctor.accepting ? (
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block shrink-0" title="Accepting patients"></span>
-                          ) : (
-                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500 inline-block shrink-0" title="Not accepting patients"></span>
-                          )}
-                        </div>
-                        <p className="text-[10px] text-slate-450">{loggedInDoctor.department} • Room {loggedInDoctor.chamber}</p>
-                      </div>
-                      <button
-                        onClick={() => {
-                          setIsDoctorLoggedIn(false);
-                          setLoggedInDoctor(null);
-                          setDocName('');
-                          setDocPhone('');
-                          setDocDept('');
-                          setDocChamber('');
-                          setDetectedDoctor(null);
-                          setDocSuggestions([]);
-                        }}
-                        className="text-[10px] text-slate-400 hover:text-slate-650 border border-slate-200 rounded px-2 py-0.5 transition"
-                      >
-                        Logout
-                      </button>
-                    </div>
-
-                    <div className="flex flex-col gap-3">
-                      {/* Check if doctor has an active session */}
-                      {!activeSessions[loggedInDoctor.phone] ? (
-                        <div className="flex flex-col gap-3 py-1 border-t border-slate-100 mt-1 pt-3 animate-fadeIn">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Consultation Session</span>
-                          <form onSubmit={handleStartSession} className="flex flex-col gap-2">
-                            <input
-                              type="text"
-                              value={sessionNameInput}
-                              onChange={(e) => setSessionNameInput(e.target.value)}
-                              placeholder="Session name (e.g. Morning OPD)"
-                              className="w-full px-3 py-2 rounded border border-slate-350 focus:outline-none focus:border-slate-400 text-xs text-slate-800 bg-white placeholder-slate-400"
-                            />
-                            <button
-                              type="submit"
-                              className="w-full py-2 bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs rounded transition flex items-center justify-center gap-1.5 cursor-pointer"
-                            >
-                              <BookOpen className="w-3.5 h-3.5" />
-                              Start Session
-                            </button>
-                          </form>
-                        </div>
-                      ) : (
-                        (() => {
-                          const currentSession = activeSessions[loggedInDoctor.phone];
-                          const hasActivePatient = queue.some(p => p.status === 'in-consultation' && p.doctor_name === loggedInDoctor.name);
-                          return (
-                            <div className="flex flex-col gap-3.5 animate-fadeIn">
-                              {/* Session Banner */}
-                              <div className="bg-emerald-50 border border-emerald-100 rounded p-2.5 flex items-center justify-between shadow-sm">
-                                <div className="flex items-center gap-2 min-w-0">
-                                  <span className="relative flex h-2 w-2 shrink-0">
-                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                                  </span>
-                                  <span className="text-[11px] font-bold text-emerald-800 truncate" title={currentSession.sessionName}>
-                                    Active: {currentSession.sessionName}
-                                  </span>
-                                </div>
-                                <span className="text-[9px] font-bold text-emerald-700 bg-white px-2 py-0.5 rounded border border-emerald-250 shrink-0 shadow-sm">
-                                  {currentSession.attendedPatients.length} Attended
-                                </span>
-                              </div>
-
-                              {/* Active Patient Details */}
-                              <div className="bg-slate-50 border border-slate-200 rounded p-3.5 flex flex-col gap-2">
-                                <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Active Patient</span>
-                                {hasActivePatient ? (
-                                  (() => {
-                                    const activePatient = queue.find(p => p.status === 'in-consultation' && p.doctor_name === loggedInDoctor.name);
-                                    return (
-                                      <div className="flex flex-col gap-3">
-                                        <div className="flex justify-between items-start">
-                                          <div>
-                                            <div className="text-xs font-extrabold text-slate-800">
-                                              {activePatient.patient_name}
-                                            </div>
-                                            <div className="text-[10px] text-slate-400 font-semibold mt-0.5">
-                                              Token: QC-101-{activePatient.token_number}
-                                            </div>
-                                          </div>
-                                        </div>
-                                        <div className="flex flex-col gap-1 border-t border-slate-200/80 pt-2.5">
-                                          <label className="text-[9.5px] font-bold text-slate-450 uppercase tracking-wide">Prescription No.</label>
-                                          <input
-                                            type="text"
-                                            value={currentPrescriptionNo}
-                                            onChange={(e) => setCurrentPrescriptionNo(e.target.value)}
-                                            placeholder="Enter prescription no. or details..."
-                                            className="w-full px-2 py-1.5 rounded border border-slate-300 focus:outline-none focus:border-slate-400 text-xs text-slate-800 bg-white placeholder-slate-400"
-                                          />
-                                        </div>
-                                      </div>
-                                    );
-                                  })()
-                                ) : (
-                                  <span className="text-xs text-slate-400 italic">No active patient in consultation.</span>
-                                )}
-                              </div>
-
-                              {/* Controls */}
-                              <div className="grid grid-cols-2 gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => handleDocCallNext(loggedInDoctor.name)}
-                                  disabled={actionLoading || !loggedInDoctor.accepting}
-                                  className="py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-200 disabled:text-slate-400 text-white font-semibold text-xs rounded transition flex items-center justify-center gap-1 cursor-pointer disabled:cursor-not-allowed"
-                                >
-                                  <Play className="w-3 h-3 fill-current" />
-                                  Call Next Patient
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleDocEndSession(loggedInDoctor.name)}
-                                  disabled={actionLoading || !hasActivePatient}
-                                  className="py-2 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-200 disabled:text-slate-400 text-white font-semibold text-xs rounded transition flex items-center justify-center gap-1 cursor-pointer"
-                                >
-                                  <Check className="w-3.5 h-3.5" />
-                                  End Consult
-                                </button>
-                              </div>
-
-                              {/* Close Session and Report button */}
-                              <button
-                                type="button"
-                                onClick={() => handleDocCloseSession(loggedInDoctor.name)}
-                                disabled={actionLoading}
-                                className="w-full py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-250 font-semibold text-xs rounded transition flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
-                              >
-                                <X className="w-3.5 h-3.5 text-slate-500" />
-                                End Session & Save Report
-                              </button>
-                            </div>
-                          );
-                        })()
-                      )}
-
-                      {/* Availability controls */}
-                      <div className="flex gap-2 mt-1 border-t border-slate-100 pt-3">
-                        <button
-                          type="button"
-                          onClick={() => handleToggleAccepting(true)}
-                          className={`flex-1 py-1.5 rounded border text-[11px] font-semibold transition cursor-pointer ${
-                            loggedInDoctor.accepting
-                              ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
-                              : 'bg-white text-slate-650 border-slate-200 hover:bg-slate-50'
-                          }`}
-                        >
-                          Accept
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleToggleAccepting(false)}
-                          className={`flex-1 py-1.5 rounded border text-[11px] font-semibold transition cursor-pointer ${
-                            !loggedInDoctor.accepting
-                              ? 'bg-rose-50 text-rose-800 border-rose-300'
-                              : 'bg-white text-slate-650 border-slate-200 hover:bg-slate-50'
-                          }`}
-                        >
-                          Stop Accept
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* SESSION HISTORY CARD — PUBLICLY ACCESSIBLE TO PATIENTS AT ANY TIME */}
-              <div className="bg-white border border-slate-200 rounded-xl p-5 flex flex-col gap-4 shadow-sm mt-4 animate-fadeIn">
+              {/* Session History — below Analytics */}
+              <div className="bg-white border border-slate-200 rounded-xl p-5 flex flex-col gap-4 shadow-xs animate-fadeIn">
                 <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 border-b border-slate-100 pb-2.5">
                   <div className="w-5 h-5 rounded-md bg-indigo-50 border border-indigo-100 flex items-center justify-center shrink-0">
                     <FileText className="w-3 h-3 text-indigo-600" />
                   </div>
-                  Session History (Stored Reports)
+                  Session Reports
                 </h3>
                 
                 {sessionHistory.length === 0 ? (
@@ -1445,12 +2029,12 @@ export default function App() {
                               {session.sessionName}
                             </h4>
                             <p className="text-[10px] text-slate-400 font-semibold mt-1">
-                              Doctor: <span className="font-extrabold text-slate-550">{session.doctorName}</span> • {dateFormatted}, {timeFormatted}
+                              Doctor: <span className="font-extrabold text-slate-600">{session.doctorName}</span> • {dateFormatted}, {timeFormatted}
                             </p>
                           </div>
                           <button
                             onClick={() => downloadSessionReport(session)}
-                            className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-150 rounded text-[10.5px] font-bold transition shadow-sm cursor-pointer"
+                            className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-150 rounded text-[10.5px] font-bold transition shadow-xs cursor-pointer"
                           >
                             <Download className="w-3 h-3 text-indigo-600" />
                             Download DOC
@@ -1461,264 +2045,146 @@ export default function App() {
                   </div>
                 )}
               </div>
-            </section>
-
-            {/* COLUMN 2: PATIENT WAITING ROOM VIEW */}
-            <section className="minimal-panel rounded-xl p-6 flex flex-col gap-6">
-              <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-                <div>
-                  <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                    <Activity className="w-4 h-4 text-slate-700" />
-                    Waiting Room Display
-                  </h2>
-                </div>
-                <div>
-                  <input
-                    list="waiting-room-options"
-                    value={roomNumber}
-                    onChange={(e) => setRoomNumber(e.target.value)}
-                    placeholder="Type or pick room..."
-                    className="text-xs font-semibold bg-slate-100 border border-slate-200 text-slate-700 rounded px-2.5 py-1 w-28 focus:outline-none focus:ring-1 focus:ring-slate-400"
-                  />
-                  <datalist id="waiting-room-options">
-                    {Array.from({ length: 50 }, (_, i) => (
-                      <option key={101 + i} value={`Room ${101 + i}`} />
-                    ))}
-                  </datalist>
-                </div>
-              </div>
-
-              {/* Big Board Now Serving */}
-              <div className="bg-white border border-slate-200 rounded-xl p-8 flex flex-col items-center justify-center text-center shadow-sm">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-450 mb-1">
-                  {roomNumber} - Now Serving
-                </span>
-                <div className="text-6xl font-extrabold text-slate-950 my-1">
-                  {settings.current_serving_token > 0 ? `QC-101-${settings.current_serving_token}` : '—'}
-                </div>
-                <div className="mt-2 text-xs font-semibold text-slate-700">
-                  {servingPatient ? servingPatient.patient_name : 'No active consultations'}
-                </div>
-                {servingPatient && servingPatient.doctor_name && (
-                  <div className="mt-3.5 text-[10px] text-slate-500 font-medium bg-slate-50 border border-slate-150 rounded-full px-3 py-1 animate-fadeIn">
-                    Consulting Doctor: <strong className="text-slate-700 font-semibold">{servingPatient.doctor_name}</strong>
-                  </div>
-                )}
-              </div>
-
-              {/* Simple Stats Grid */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-white border border-slate-200 p-4 rounded-lg text-center flex flex-col gap-0.5">
-                  <span className="text-[10px] font-medium text-slate-400">Patients Waiting</span>
-                  <span className="text-lg font-bold text-slate-800">{waitingCount}</span>
-                </div>
-                <div className="bg-white border border-slate-200 p-4 rounded-lg text-center flex flex-col gap-0.5">
-                  <span className="text-[10px] font-medium text-slate-400">Patients Served</span>
-                  <span className="text-lg font-bold text-slate-800">{completedCount}</span>
-                </div>
-              </div>
-
-              {/* Upcoming Queue - horizontal row format */}
-              <div className="flex-1 flex flex-col gap-2.5">
-                <div className="flex flex-col gap-2 border-b border-slate-100 pb-2">
-                  <div className="flex justify-between items-center">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Upcoming Queue (Next 3)</span>
-                    <span className="text-[9px] text-slate-400">Refreshes in real-time</span>
-                  </div>
-                  
-                  {/* Search Patients Bar */}
-                  <div className="relative mt-1">
-                    <input
-                      type="text"
-                      value={patientSearchQuery}
-                      onChange={(e) => setPatientSearchQuery(e.target.value)}
-                      placeholder="Search patient by name..."
-                      className="w-full pl-8 pr-3 py-1.5 rounded border border-slate-200 focus:outline-none focus:border-slate-350 text-xs text-slate-800 placeholder-slate-400"
-                    />
-                    <Search className="w-3 h-3 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
-                  </div>
-                </div>
-
-                {filteredUpcomingQueue.length === 0 ? (
-                  <div className="text-center py-8 bg-white border border-dashed border-slate-200 rounded-lg text-xs text-slate-400 italic">
-                    {patientSearchQuery.trim() ? 'No matching patients found.' : 'All caught up. No patients waiting.'}
-                  </div>
-                ) : (
-                  <div className="flex flex-row gap-2 overflow-x-auto pb-1">
-                    {filteredUpcomingQueue.map((patient) => {
-                      const waitTime = (patient.token_number - settings.current_serving_token) * settings.avg_consultation_time;
-                      return (
-                        <div
-                          key={patient.id}
-                          className="flex-1 min-w-[170px] bg-white border border-slate-200 p-3 rounded-lg flex flex-col gap-1.5"
-                        >
-                          <div className="flex justify-between items-start gap-1">
-                            <span className="inline-block px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 text-[10px] font-bold">
-                              QC-101-{patient.token_number}
-                            </span>
-                            <button
-                              onClick={() => handleSendSMS(patient)}
-                              className="text-[9px] bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-semibold px-1.5 py-0.5 rounded border border-emerald-150 transition"
-                              title="Notify patient via WhatsApp"
-                            >
-                              WhatsApp
-                            </button>
-                          </div>
-                          <h4 className="font-bold text-slate-800 text-xs truncate">{patient.patient_name}</h4>
-                          <span className="text-[9px] text-slate-500 italic truncate">Dr: {patient.doctor_name}</span>
-                          <div className="flex items-center gap-1 text-[10px] font-semibold text-slate-500 mt-auto pt-1">
-                            <Clock className="w-3 h-3 text-slate-400 flex-shrink-0" />
-                            <span>{waitTime > 0 ? waitTime : settings.avg_consultation_time} min wait</span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
-              {/* Queue Control — moved here under Upcoming Queue */}
-              <div className="bg-white border border-slate-200/80 rounded-lg p-5 flex flex-col gap-4">
-                <h3 className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
-                  <Play className="w-3.5 h-3.5 text-slate-500" />
-                  Queue Control
-                </h3>
-
-                <div className="flex justify-between items-center bg-slate-50 border border-slate-100 rounded px-3 py-2 text-xs">
-                  <span className="text-slate-500">Currently Serving Token:</span>
-                  <span className="font-bold text-slate-800">
-                    {settings.current_serving_token > 0 ? `QC-101-${settings.current_serving_token}` : '—'}
+            </div>
+          </div>
+        ) : (
+          /* PATIENT DISPLAY DASHBOARD */
+          <div className="flex flex-col gap-8 animate-fadeIn">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              
+              {/* Left Side: Now Serving + Stats */}
+              <div className="flex flex-col gap-6">
+                
+                {/* Big Board Now Serving */}
+                <div className="bg-white border border-slate-200 rounded-xl p-8 flex flex-col items-center justify-center text-center shadow-xs">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-450 mb-1">
+                    {roomNumber} - Now Serving
                   </span>
-                </div>
-
-                {/* Next 3 Patients List */}
-                <div className="flex flex-col gap-2 border-t border-slate-100 pt-3">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Next 3 Patients</span>
-                  {upcomingQueue.slice(0, 3).length === 0 ? (
-                    <div className="text-center py-2.5 text-xs text-slate-400 italic bg-slate-50/50 border border-dashed border-slate-200 rounded-md">
-                      No patients waiting in queue.
-                    </div>
-                  ) : (
-                    <div className="flex flex-col gap-1.5">
-                      {upcomingQueue.slice(0, 3).map((patient) => (
-                        <div 
-                          key={patient.id} 
-                          className="bg-slate-50 border border-slate-200 rounded px-3 py-1.5 transition"
-                        >
-                          {editingPatientId === patient.id ? (
-                            <form 
-                              onSubmit={(e) => {
-                                e.preventDefault();
-                                handleUpdatePatient(patient.id, editPatientName, editPatientToken);
-                                setEditingPatientId(null);
-                              }}
-                              className="w-full flex flex-col gap-2 py-0.5"
-                            >
-                              <div className="flex flex-col gap-1">
-                                <label className="text-[9px] font-bold text-slate-400 uppercase">Patient Name</label>
-                                <input
-                                  type="text"
-                                  required
-                                  value={editPatientName}
-                                  onChange={(e) => setEditPatientName(e.target.value)}
-                                  className="w-full px-2 py-1 border border-slate-300 rounded text-xs text-slate-800 focus:outline-none focus:border-slate-400 bg-white"
-                                />
-                              </div>
-                              <div className="flex flex-col gap-1">
-                                <label className="text-[9px] font-bold text-slate-400 uppercase">Token Number</label>
-                                <div className="flex items-center gap-1">
-                                  <span className="text-xs text-slate-450 font-semibold shrink-0">QC-101-</span>
-                                  <input
-                                    type="number"
-                                    required
-                                    value={editPatientToken}
-                                    onChange={(e) => setEditPatientToken(e.target.value)}
-                                    className="w-full px-2 py-1 border border-slate-300 rounded text-xs text-slate-800 focus:outline-none focus:border-slate-400 bg-white"
-                                  />
-                                </div>
-                              </div>
-                              <div className="flex justify-end gap-1.5 mt-1">
-                                <button
-                                  type="button"
-                                  onClick={() => setEditingPatientId(null)}
-                                  className="px-2 py-1 hover:bg-slate-200 text-[10px] font-semibold text-slate-600 rounded transition"
-                                >
-                                  Cancel
-                                </button>
-                                <button
-                                  type="submit"
-                                  className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white text-[10px] font-semibold rounded transition"
-                                >
-                                  Save
-                                </button>
-                              </div>
-                            </form>
-                          ) : (
-                            <div className="flex justify-between items-center w-full">
-                              <div className="flex flex-col min-w-0">
-                                <span className="text-xs font-semibold text-slate-800 truncate">{patient.patient_name}</span>
-                                <span className="text-[10px] text-slate-400 mt-0.5">QC-101-{patient.token_number}</span>
-                              </div>
-                              <div className="flex items-center gap-1 shrink-0 relative group">
-                                <button
-                                  type="button"
-                                  className="p-1 hover:bg-slate-200 text-slate-400 hover:text-slate-650 rounded transition cursor-pointer"
-                                  title="More Options"
-                                >
-                                  <MoreVertical className="w-3.5 h-3.5" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleRemovePatient(patient.id, patient.patient_name)}
-                                  className="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded transition shrink-0 cursor-pointer"
-                                  title="Cancel Patient"
-                                >
-                                  <X className="w-3.5 h-3.5" />
-                                </button>
-
-                                <div className="absolute right-0 top-6 hidden group-hover:block bg-white border border-slate-200 rounded shadow-md z-30 py-1 min-w-[70px]">
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setEditingPatientId(patient.id);
-                                      setEditPatientName(patient.patient_name);
-                                      setEditPatientToken(String(patient.token_number));
-                                    }}
-                                    className="w-full text-left px-3 py-1.5 hover:bg-slate-50 text-xs font-medium text-slate-700 cursor-pointer"
-                                  >
-                                    Edit
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      ))}
+                  <div className="text-6xl font-extrabold text-slate-955 my-1">
+                    {settings.current_serving_token > 0 ? `QC-101-${settings.current_serving_token}` : '—'}
+                  </div>
+                  <div className="mt-2 text-xs font-semibold text-slate-750">
+                    {servingPatient ? servingPatient.patient_name : 'No active consultations'}
+                  </div>
+                  {servingPatient && servingPatient.doctor_name && (
+                    <div className="mt-3.5 text-[10px] text-slate-500 font-medium bg-slate-50 border border-slate-150 rounded-full px-3 py-1 animate-fadeIn">
+                      Consulting Doctor: <strong className="text-slate-755 font-bold">{servingPatient.doctor_name}</strong>
                     </div>
                   )}
                 </div>
 
-                <div className="flex gap-2">
-                  <button
-                    onClick={handleCallNext}
-                    disabled={actionLoading}
-                    className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs rounded transition flex items-center justify-center gap-1.5 disabled:opacity-50"
-                  >
-                    <Play className="w-3.5 h-3.5 fill-current" />
-                    Call Next Patient
-                  </button>
-                  <button
-                    onClick={handleReset}
-                    disabled={actionLoading}
-                    className="px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-250 font-semibold text-xs rounded transition flex items-center justify-center"
-                    title="Reset Queue"
-                  >
-                    Reset
-                  </button>
+                {/* Simple Stats Grid */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-white border border-slate-200 p-4 rounded-lg text-center flex flex-col gap-0.5">
+                    <span className="text-[10px] font-semibold text-slate-400">Patients Waiting</span>
+                    <span className="text-lg font-bold text-slate-800">{waitingCount}</span>
+                  </div>
+                  <div className="bg-white border border-slate-200 p-4 rounded-lg text-center flex flex-col gap-0.5">
+                    <span className="text-[10px] font-semibold text-slate-400">Patients Served</span>
+                    <span className="text-lg font-bold text-slate-800">{completedCount}</span>
+                  </div>
                 </div>
               </div>
-            </section>
 
+              {/* Right Side: Upcoming Queue List */}
+              <div className="minimal-panel rounded-xl p-6 flex flex-col gap-6">
+                <div className="flex-1 flex flex-col gap-2.5">
+                  <div className="flex flex-col gap-2 border-b border-slate-100 pb-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Upcoming Queue (Next 3)</span>
+                      <span className="text-[9px] text-slate-400">Refreshes in real-time</span>
+                    </div>
+
+                    <div className="relative mt-1">
+                      <input
+                        type="text"
+                        value={patientSearchQuery}
+                        onChange={(e) => setPatientSearchQuery(e.target.value)}
+                        placeholder="Search patient by name..."
+                        className="w-full pl-8 pr-3 py-1.5 rounded border border-slate-200 focus:outline-none focus:border-slate-350 text-xs text-slate-800 placeholder-slate-400"
+                      />
+                      <Search className="w-3 h-3 text-slate-450 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                    </div>
+                  </div>
+
+                  {filteredUpcomingQueue.length === 0 ? (
+                    <div className="text-center py-8 bg-white border border-dashed border-slate-200 rounded-lg text-xs text-slate-400 italic">
+                      {patientSearchQuery.trim() ? 'No matching patients found.' : 'All caught up. No patients waiting.'}
+                    </div>
+                  ) : (
+                    <div className="flex flex-row gap-2 overflow-x-auto pb-1">
+                      {filteredUpcomingQueue.map((patient) => {
+                        const isEmergency = patient.consultation_type === 'Emergency';
+                        const indexInQueue = upcomingQueue.findIndex(p => p.id === patient.id);
+                        const slotsAhead = indexInQueue !== -1 ? indexInQueue + 1 : 1;
+                        const elapsedMinutes = consultationStartedAt
+                          ? Math.floor((Date.now() - consultationStartedAt) / 60000)
+                          : 0;
+                        const rawWait = slotsAhead * settings.avg_consultation_time;
+                        const waitTime = Math.max(0, rawWait - elapsedMinutes);
+                        const isNext = indexInQueue === 0;
+
+                        return (
+                          <div
+                            key={patient.id}
+                            className={`flex-1 min-w-[170px] p-3 rounded-lg flex flex-col gap-1.5 border transition-all duration-300 ${
+                              isEmergency
+                                ? 'bg-rose-50 border-rose-200 text-rose-900 shadow-xs shadow-rose-100/50'
+                                : 'bg-white border-slate-200'
+                            }`}
+                          >
+                            <div className="flex justify-between items-start gap-1">
+                              <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                isEmergency ? 'bg-rose-100 text-rose-700 animate-pulse border border-rose-200' : 'bg-slate-100 text-slate-700'
+                              }`}>
+                                QC-101-{patient.token_number}
+                              </span>
+                              <button
+                                onClick={() => handleSendSMS(patient)}
+                                className={`text-[9px] font-semibold px-1.5 py-0.5 rounded border transition cursor-pointer ${
+                                  isEmergency
+                                    ? 'bg-rose-100 hover:bg-rose-200 text-rose-800 border-rose-200'
+                                    : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-150'
+                                }`}
+                                title="Notify patient via WhatsApp"
+                              >
+                                WhatsApp
+                              </button>
+                            </div>
+                            <h4 className="font-bold text-slate-800 text-xs truncate">{patient.patient_name}</h4>
+                            <span className="text-[9px] text-slate-500 italic truncate">Dr: {patient.doctor_name}</span>
+                            {isEmergency ? (
+                              <span className="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 bg-rose-100 text-rose-700 rounded border border-rose-200 self-start">
+                                <span className="w-1 h-1 rounded-full bg-rose-500 animate-ping"></span>
+                                🚨 Emergency
+                              </span>
+                            ) : (
+                              patient.consultation_type && (
+                                <span className="text-[9px] font-semibold px-1.5 py-0.5 bg-indigo-50 text-indigo-650 rounded border border-indigo-100 self-start">
+                                  {patient.consultation_type}
+                                </span>
+                              )
+                            )}
+                            <div className="flex items-center gap-1 mt-auto pt-1">
+                              <Clock className="w-3 h-3 text-slate-400 flex-shrink-0" />
+                              {isNext && waitTime === 0 ? (
+                                <span className="text-[10px] font-bold text-emerald-600 animate-pulse">You're next!</span>
+                              ) : (
+                                <span className="text-[10px] font-semibold text-slate-500">{waitTime} min wait</span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+            </div>
+
+            {/* Bottom Panel: All Patients waiting table */}
+            {renderAllPatientsQueue()}
           </div>
         )}
       </main>
@@ -1774,9 +2240,10 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => {
-                  const cleanPhone = getCleanPhone(smsModalPatient.phone_number);
+                  const digits = (smsModalPatient.phone_number || '').replace(/\D/g, '');
+                  const cleanPhone = digits.length === 10 ? `91${digits}` : digits;
                   const message = `Dear ${smsModalPatient.patient_name}, your turn has arrived for your consultation (assigned: ${smsModalPatient.doctor_name || 'Doctor'}). Please report to the clinic chamber within the next 5 minutes. Thank you.`;
-                  window.open(`https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(message)}`, '_blank');
+                  window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`, '_blank', 'noopener,noreferrer');
                   showToast('WhatsApp composer opened!', 'success');
                   setSmsModalPatient(null);
                 }}
